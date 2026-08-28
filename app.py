@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime
 from supabase import create_client, Client
@@ -184,10 +185,31 @@ if user_data and not user_data.get("email"):
                     st.rerun()
     st.stop()
 
-# SAP Corporate Sidebar with Live Date & Time Header (High Contrast White Text)
+# SAP Corporate Sidebar with Live Local Time Component (Supports UK/Europe/Global Local System Times)
 st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 5px;'>", unsafe_allow_html=True)
-current_time_str = datetime.now().strftime('%d %b %Y, %I:%M:%S %p')
-st.sidebar.markdown(f"<div style='font-size: 13px; color: #ffffff; font-weight: 600; margin-bottom: 10px;'>📅 {current_time_str}</div>", unsafe_allow_html=True)
+
+components.html("""
+    <div id="local-time" style="font-size: 13px; color: #ffffff; font-weight: 600; margin-bottom: 10px; font-family: '72', Arial, sans-serif;">
+        📅 Loading local time...
+    </div>
+    <script>
+    function updateTime() {
+        const now = new Date();
+        const options = { 
+            day: '2-digit', 
+            month: 'short', 
+            year: 'numeric', 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit',
+            hour12: true 
+        };
+        document.getElementById('local-time').innerText = '📅 ' + now.toLocaleString('en-GB', options);
+    }
+    updateTime();
+    setInterval(updateTime, 1000);
+    </script>
+""", height=30)
 
 st.sidebar.markdown(f"<span style='color: #ffffff;'>User:</span> **{st.session_state.username}**", unsafe_allow_html=True)
 st.sidebar.markdown(f"<span style='color: #ffffff;'>Role:</span> **{st.session_state.user_role}**", unsafe_allow_html=True)
