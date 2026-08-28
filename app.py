@@ -144,19 +144,63 @@ if st.sidebar.button("Logout"):
     st.session_state.user_info = None
     st.rerun()
 
+is_admin_or_kapil = st.session_state.user_role in ["Admin", "Super Admin"] or st.session_state.username.lower() == "kapil"
+
 if page == "Dashboard & Claims":
     st.markdown("<div class='main-header'>📊 Dashboard & Claim Records</div>", unsafe_allow_html=True)
     df = fetch_records()
+    
     if not df.empty:
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Claims", len(df))
-        amt_col = 'amount' if 'amount' in df.columns else 'invoice_amount'
-        col2.metric("Total Amount", f"₹ {df[amt_col].sum():,.2f}")
-        col3.metric("Pending Approvals", len(df[df['status'].isin(['Pending', 'Submitted'])]))
-        
-        st.dataframe(df, use_container_width=True)
+        if not is_admin_or_kapil and assigned_prism:
+            df = df[df['prism_id'] == assigned_prism]
+            
+        if not df.empty:
+            with st.expander("🔍 Advanced Filters & Search Options", expanded=True):
+                col_f1, col_f2, col_f3 = st.columns(3)
+                
+                with col_f1:
+                    merchants = ["All"] + list(df['merchant'].dropna().unique())
+                    selected_merchant = st.selectbox("Filter by Vendor / Merchant", merchants)
+                    
+                    regions = ["All"]
+                    if 'region' in df.columns:
+                        regions += list(df['region'].dropna().unique())
+                    selected_region = st.selectbox("Filter by Region", regions)
+
+                with col_f2:
+                    df['year'] = pd.to_datetime(df['claim_date'], errors='coerce').dt.year
+                    years = ["All"] + sorted([str(int(y)) for y in df['year'].dropna().unique() if pd.notna(y)])
+                    selected_year = st.selectbox("Filter by Year", years)
+
+                    if is_admin_or_kapil:
+                        properties = ["All"] + list(df['property_name'].dropna().unique())
+                        selected_property = st.selectbox("Filter by Property / Hotel", properties)
+
+                with col_f3:
+                    max_amt_val = float(df['amount'].max()) if not df.empty else 10000.0
+                    selected_max_amount = st.slider("Maximum Petty Cash Amount", 0.0, max_amt_val if max_amt_val > 0 else 10000.0, max_amt_val)
+
+            filtered_df = df.copy()
+            if selected_merchant != "All":
+                filtered_df = filtered_df[filtered_df['merchant'] == selected_merchant]
+            if selected_region != "All" and 'region' in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df['region'] == selected_region]
+            if selected_year != "All":
+                filtered_df = filtered_df[filtered_df['year'].astype(str) == selected_year]
+            if is_admin_or_kapil and selected_property != "All":
+                filtered_df = filtered_df[filtered_df['property_name'] == selected_property]
+            filtered_df = filtered_df[filtered_df['amount'] <= selected_max_amount]
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total Filtered Claims", len(filtered_df))
+            col2.metric("Total Amount", f"₹ {filtered_df['amount'].sum():,.2f}")
+            col3.metric("Pending Approvals", len(filtered_df[filtered_df['status'].isin(['Pending', 'Submitted'])]))
+            
+            st.dataframe(filtered_df, use_container_width=True)
+        else:
+            st.info("No records found for your assigned property.")
     else:
-        st.info("No petty cash claims found.")
+        st.info("No petty cash claims found in database.")
 
 elif page == "New Expense Claim":
     st.markdown("<div class='main-header'>📝 Submit New Claim with Auto-Validation & OCR Table</div>", unsafe_allow_html=True)
@@ -164,6 +208,7 @@ elif page == "New Expense Claim":
     assigned_prism_id = user_data.get("assigned_prism_id", "")
     assigned_region = user_data.get("assigned_region", "")
     property_name = ""
+    property_short_name = "prop"
     
     currency = "₹"
     if assigned_region and assigned_region.lower() == "europe":
@@ -171,23 +216,27 @@ elif page == "New Expense Claim":
     
     if assigned_prism_id:
         try:
-            h_res = supabase.table("hotel_master").select("property_name", "currency").eq("prism_id", assigned_prism_id).execute()
+            h_res = supabase.table("hotel_master").select("*").eq("prism_id", assigned_prism_id).execute()
             if h_res.data:
                 property_name = h_res.data[0].get("property_name", "")
+                # Making short name clean and lowercase (e.g., walton)
+                raw_short = h_res.data[0].get("short_name", assigned_prism_id.split('_')[-1])
+                property_short_name = "".join(e for e in raw_short if e.isalnum()).lower()
                 db_currency = h_res.data[0].get("currency", "")
                 if db_currency:
                     currency = db_currency
         except Exception:
-            pass
+            property_short_name = assigned_prism_id.split('_')[-1].lower() if assigned_prism_id else "prop"
 
     with st.form("claim_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
             claim_date = st.date_input("Claim Date", datetime.today())
             entry_date = st.date_input("Entry Date", datetime.today())
+            invoice_number = st.text_input("Invoice Number* (e.g. 1024)")
             category = st.selectbox("Category*", ["Travel", "Office Supplies", "Maintenance", "Food & Beverage", "Utility", "Other"])
-            amount = st.number_input(f"Amount ({currency})", min_value=0.0, step=10.0, format="%.2f")
         with col2:
+            amount = st.number_input(f"Amount ({currency})", min_value=0.0, step=10.0, format="%.2f")
             merchant = st.text_input("Merchant / Vendor Name*")
             description = st.text_area("Description / Reason*")
             
@@ -204,6 +253,9 @@ elif page == "New Expense Claim":
             if not uploaded_files:
                 st.error("❌ Submission Failed: At least 1 Bill / Receipt attachment is required!")
                 st.stop()
+            if not invoice_number.strip():
+                st.error("❌ Invoice Number is mandatory.")
+                st.stop()
             if amount <= 0:
                 st.error("❌ Please enter a valid Amount.")
                 st.stop()
@@ -211,10 +263,16 @@ elif page == "New Expense Claim":
                 st.error("❌ Merchant Name and Description are mandatory.")
                 st.stop()
                 
+            # DUPLICATE INVOICE CHECK
+            clean_inv_check = invoice_number.strip()
+            existing_check = supabase.table("petty_cash").select("id").eq("invoice_number", clean_inv_check).eq("prism_id", assigned_prism_id).execute()
+            if existing_check.data:
+                st.error(f"❌ **Duplicate Error:** Invoice Number `{clean_inv_check}` has already been submitted for this property!")
+                st.stop()
+
             extracted_receipt_rows = []
             amount_matched = False
             
-            # OCR & Receipt Table Generation
             if OCR_AVAILABLE and uploaded_files:
                 with st.spinner("🤖 Scanning receipt items & amounts via OCR..."):
                     try:
@@ -255,13 +313,13 @@ elif page == "New Expense Claim":
                 else:
                     st.success("✅ **Validation Passed:** Amount verified against receipt items table.")
 
-            # UPLOAD & SAVE TO SUPABASE
+            # UPLOAD & SAVE TO SUPABASE WITH FORMAT: propertyShortName_inv_invoiceNumber
             try:
                 uploaded_urls = []
                 for idx, file_obj in enumerate(uploaded_files):
                     file_ext = file_obj.name.split(".")[-1]
-                    unique_suffix = int(datetime.now().timestamp() * 1000)
-                    file_name = f"{assigned_prism_id}_{claim_date}_{merchant}_{idx+1}_{unique_suffix}.{file_ext}"
+                    clean_inv = re.sub(r'[^a-zA-Z0-9]', '', invoice_number)
+                    file_name = f"{property_short_name}_inv_{clean_inv}_{idx+1}.{file_ext}"
                     file_bytes = file_obj.read()
                     storage_path = f"receipts/{file_name}"
                     
@@ -281,6 +339,7 @@ elif page == "New Expense Claim":
                     "submitted_by": st.session_state.username,
                     "claim_date": str(claim_date),
                     "entry_date": str(entry_date),
+                    "invoice_number": invoice_number,
                     "category": category,
                     "amount": amount,
                     "currency": currency,
@@ -289,7 +348,8 @@ elif page == "New Expense Claim":
                     "status": "Submitted",
                     "property_name": property_name,
                     "prism_id": assigned_prism_id,
-                    "unique_id": unique_id
+                    "unique_id": unique_id,
+                    "receipt_url": ", ".join(uploaded_urls)
                 }
                 supabase.table("petty_cash").insert(new_data).execute()
                 st.success(f"✅ Claim Submitted Successfully! Unique ID: {unique_id}")
@@ -298,7 +358,7 @@ elif page == "New Expense Claim":
 
 elif page == "Approvals Workflow":
     st.markdown("<div class='main-header'>✅ Pending Approvals</div>", unsafe_allow_html=True)
-    if st.session_state.user_role in ["Manager", "Admin", "PPM", "GM"]:
+    if st.session_state.user_role in ["Manager", "Admin", "Super Admin", "PPM", "GM"] or st.session_state.username.lower() == "kapil":
         df = fetch_records()
         if not df.empty:
             pending_df = df[df["status"].isin(["Pending", "Submitted"])]
@@ -309,12 +369,15 @@ elif page == "Approvals Workflow":
                     date_val = row.get('claim_date', '')
                     row_id = row['id']
                     
-                    with st.expander(f"Claim #{row_id} - {row.get('currency', '₹')} {amt_val} ({row['submitted_by']})"):
+                    with st.expander(f"Claim #{row_id} - Inv: {row.get('invoice_number', 'N/A')} - {row.get('currency', '₹')} {amt_val} ({row['submitted_by']})"):
                         st.write(f"**Unique ID:** {row.get('unique_id', 'N/A')}")
                         st.write(f"**Property Name:** {row.get('property_name', 'N/A')} ({row.get('prism_id', 'N/A')})")
+                        st.write(f"**Invoice Number:** {row.get('invoice_number', 'N/A')}")
                         st.write(f"**Category:** {cat_val}")
                         st.write(f"**Merchant:** {row.get('merchant', 'N/A')} | **Date:** {date_val}")
                         st.write(f"**Description:** {row.get('description', '')}")
+                        if row.get('receipt_url'):
+                            st.markdown(f"**Receipt Link:** [View Receipt]({row.get('receipt_url')})")
                         
                         col1, col2 = st.columns(2)
                         if col1.button(f"Approve #{row_id}", key=f"app_{row_id}"):
@@ -336,6 +399,9 @@ elif page == "Reports & Export":
     st.markdown("<div class='main-header'>📥 Export Reports</div>", unsafe_allow_html=True)
     df = fetch_records()
     if not df.empty:
+        if not is_admin_or_kapil and assigned_prism:
+            df = df[df['prism_id'] == assigned_prism]
+            
         st.dataframe(df, use_container_width=True)
         
         buffer = io.BytesIO()
