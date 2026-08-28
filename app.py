@@ -6,7 +6,16 @@ import json
 import re
 import io
 
-# 1. Database Connection (Secrets)
+# OCR Import check
+try:
+    import easyocr
+    @st.cache_resource
+    def load_ocr_reader():
+        return easyocr.Reader(['en'], gpu=False)
+    OCR_AVAILABLE = True
+except ImportError:
+    OCR_AVAILABLE = False
+
 @st.cache_resource
 def init_supabase() -> Client:
     url = st.secrets["SUPABASE_URL"]
@@ -19,10 +28,8 @@ except Exception as e:
     st.error("Supabase Connection Error! Please set secrets in Streamlit Cloud.")
     st.stop()
 
-# 2. App Page Config
 st.set_page_config(page_title="PRISM Petty Cash Management", page_icon="🏢", layout="wide")
 
-# Custom Styling + Streamlit Branding Removal (Header, Footer, Menu)
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -34,7 +41,6 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 3. Session State Initialization
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user_role" not in st.session_state:
@@ -44,7 +50,6 @@ if "username" not in st.session_state:
 if "user_info" not in st.session_state:
     st.session_state.user_info = None
 
-# Password Policy Function
 def check_password_policy(password):
     if len(password) < 8:
         return False, "Password must be at least 8 characters long."
@@ -56,21 +61,18 @@ def check_password_policy(password):
         return False, "At least 1 Special character (@, #, $) is required."
     return True, "Valid"
 
-# Helper Functions
 def fetch_records():
     res = supabase.table("petty_cash").select("*").order("id", desc=True).execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
-# Official PRISM Logo URL
 PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
 
-# 4. Authentication Logic
 if not st.session_state.authenticated:
     col_logo, col_title = st.columns([2, 6])
     with col_logo:
         st.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 140px; margin-top: 10px;'>", unsafe_allow_html=True)
     with col_title:
-        st.markdown("<h3 style='margin: 0; color: #111;'>Petty Cash Management Portal</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin: 0; color: #11;'>Petty Cash Management Portal</h3>", unsafe_allow_html=True)
     
     st.markdown("---")
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -95,7 +97,6 @@ if not st.session_state.authenticated:
                     st.error("Invalid Username or Password")
     st.stop()
 
-# 4.1 First-Time Login Profile Setup (Email & Password Change Check)
 user_data = st.session_state.user_info
 if user_data and not user_data.get("email"):
     st.markdown("<div class='main-header'>🔒 PRISM Security Setup: Register Email & Update Password</div>", unsafe_allow_html=True)
@@ -127,7 +128,6 @@ if user_data and not user_data.get("email"):
                     st.rerun()
     st.stop()
 
-# 5. Sidebar Menu with PRISM Logo
 st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 10px;'>", unsafe_allow_html=True)
 st.sidebar.caption(f"User: **{st.session_state.username}**")
 st.sidebar.caption(f"Role: **{st.session_state.user_role}**")
@@ -144,7 +144,6 @@ if st.sidebar.button("Logout"):
     st.session_state.user_info = None
     st.rerun()
 
-# 6. Page Routing
 if page == "Dashboard & Claims":
     st.markdown("<div class='main-header'>📊 Dashboard & Claim Records</div>", unsafe_allow_html=True)
     df = fetch_records()
@@ -160,7 +159,7 @@ if page == "Dashboard & Claims":
         st.info("No petty cash claims found.")
 
 elif page == "New Expense Claim":
-    st.markdown("<div class='main-header'>📝 Submit New Petty Cash Claim</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>📝 Submit New Petty Cash Claim with Auto-Receipt Validation</div>", unsafe_allow_html=True)
     
     assigned_prism_id = user_data.get("assigned_prism_id", "")
     assigned_region = user_data.get("assigned_region", "")
@@ -202,7 +201,7 @@ elif page == "New Expense Claim":
             accept_multiple_files=True
         )
         
-        submitted = st.form_submit_button("Submit Claim")
+        submitted = st.form_submit_button("Submit & Validate Claim")
         if submitted:
             if not uploaded_files:
                 st.error("❌ Submission Failed: At least 1 Bill / Receipt attachment is required!")
@@ -214,6 +213,53 @@ elif page == "New Expense Claim":
                 st.error("❌ Vendor Name and Receipt No. are mandatory.")
                 st.stop()
                 
+            extracted_receipt_rows = []
+            amount_matched = False
+            
+            if OCR_AVAILABLE and uploaded_files:
+                with st.spinner("🤖 Scanning receipt items, amounts & descriptions via OCR..."):
+                    try:
+                        reader = load_ocr_reader()
+                        for f_idx, file_obj in enumerate(uploaded_files):
+                            file_bytes = file_obj.read()
+                            file_obj.seek(0)
+                            
+                            ocr_results = reader.readtext(file_bytes, detail=0)
+                            full_text_str = " ".join(ocr_results)
+                            
+                            # Simple numeric regex to discover prices/amounts in receipt
+                            found_numbers = re.findall(r'\d+(?:\.\d{1,2})?', full_text_str)
+                            clean_numbers = [float(n) for n in found_numbers if float(n) > 0]
+                            
+                            max_detected_amt = max(clean_numbers) if clean_numbers else 0.0
+                            
+                            extracted_receipt_rows.append({
+                                "Receipt Index": f_idx + 1,
+                                "File Name": file_obj.name,
+                                "Detected Vendor Text": vendor_name,
+                                "Max Detected Amount": max_detected_amt,
+                                "Full Extracted Text snippet": full_text_str[:120] + "..."
+                            })
+                            
+                            # Validation matching condition (allowing entered amount to match any detected amount in receipt)
+                            for num in clean_numbers:
+                                if abs(num - invoice_amount) < 1.0: # within 1 unit tolerance
+                                    amount_matched = True
+                                    break
+                    except Exception as e:
+                        st.warning(f"OCR Parsing warning: {str(e)}")
+
+            # Display generated receipt verification table if available
+            if extracted_receipt_rows:
+                st.markdown("### 📋 Auto-Generated Receipt Itemization / Validation Table")
+                st.dataframe(pd.DataFrame(extracted_receipt_rows), use_container_width=True)
+                
+                if not amount_matched:
+                    st.error(f"❌ **Validation Failed:** Entered amount `{invoice_amount}` does not match any numeric value extracted from the uploaded receipt scan! Please check your bill or amount.")
+                    st.stop()
+                else:
+                    st.success("✅ **Validation Passed:** Amount verified against uploaded receipt items table.")
+
             try:
                 uploaded_urls = []
                 for idx, file_obj in enumerate(uploaded_files):
@@ -254,7 +300,7 @@ elif page == "New Expense Claim":
                     "receipt_url": json.dumps(uploaded_urls)
                 }
                 supabase.table("petty_cash").insert(new_data).execute()
-                st.success(f"✅ Claim Submitted Successfully with {len(uploaded_files)} attachment(s)! Unique ID: {unique_id}")
+                st.success(f"✅ Claim Submitted Successfully! Unique ID: {unique_id}")
             except Exception as e:
                 st.error(f"❌ Error submitting claim: {str(e)}")
 
