@@ -30,7 +30,7 @@ except Exception as e:
 
 st.set_page_config(page_title="PRISM Petty Cash Management", page_icon="🏢", layout="wide")
 
-# SAP Enterprise UI Theme Styling (Background, Font & Elements)
+# SAP Enterprise UI Theme Styling with High Contrast Sidebar Fix
 st.markdown("""
     <style>
     /* Global App Background and Font Style */
@@ -71,16 +71,24 @@ st.markdown("""
         border: 1px solid #004f9e;
     }
 
-    /* Sidebar Styling - SAP Shell Navigation */
+    /* SAP Shell Dark Sidebar & High Contrast Visibility Fixes */
     section[data-testid="stSidebar"] {
         background-color: #1d2d3e;
         color: #ffffff;
     }
-    section[data-testid="stSidebar"] .stMarkdown {
-        color: #ffffff;
+    section[data-testid="stSidebar"] .stMarkdown, 
+    section[data-testid="stSidebar"] span, 
+    section[data-testid="stSidebar"] p, 
+    section[data-testid="stSidebar"] label {
+        color: #ffffff !important;
+    }
+    
+    /* Radio options text color override for visibility */
+    section[data-testid="stSidebar"] div[data-baseweb="radio"] div {
+        color: #ffffff !important;
     }
 
-    /* Expense Entry Form Labels: Bold, Larger and Red (As requested) */
+    /* Expense Entry Form Labels: Bold, Larger and Red */
     div[data-testid="stForm"] label p {
         font-size: 16px !important;
         font-weight: bold !important;
@@ -176,15 +184,15 @@ if user_data and not user_data.get("email"):
                     st.rerun()
     st.stop()
 
-# SAP Corporate Sidebar with Live Date & Time Header
+# SAP Corporate Sidebar with Live Date & Time Header (High Contrast White Text)
 st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 5px;'>", unsafe_allow_html=True)
 current_time_str = datetime.now().strftime('%d %b %Y, %I:%M:%S %p')
-st.sidebar.markdown(f"<div style='font-size: 12px; color: #b8c5d6; font-weight: 600; margin-bottom: 10px;'>📅 {current_time_str}</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div style='font-size: 13px; color: #ffffff; font-weight: 600; margin-bottom: 10px;'>📅 {current_time_str}</div>", unsafe_allow_html=True)
 
-st.sidebar.markdown(f"<span style='color: #b8c5d6;'>User:</span> **{st.session_state.username}**", unsafe_allow_html=True)
-st.sidebar.markdown(f"<span style='color: #b8c5d6;'>Role:</span> **{st.session_state.user_role}**", unsafe_allow_html=True)
+st.sidebar.markdown(f"<span style='color: #ffffff;'>User:</span> **{st.session_state.username}**", unsafe_allow_html=True)
+st.sidebar.markdown(f"<span style='color: #ffffff;'>Role:</span> **{st.session_state.user_role}**", unsafe_allow_html=True)
 assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
-st.sidebar.markdown(f"<span style='color: #b8c5d6;'>Prism ID:</span> **{assigned_prism}**", unsafe_allow_html=True)
+st.sidebar.markdown(f"<span style='color: #ffffff;'>Prism ID:</span> **{assigned_prism}**", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 
 page = st.sidebar.radio("Navigation", ["Dashboard & Claims", "New Expense Claim", "Approvals Workflow", "Reports & Export"])
