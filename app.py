@@ -30,10 +30,9 @@ except Exception as e:
 
 st.set_page_config(page_title="PRISM Petty Cash Management", page_icon="🏢", layout="wide")
 
-# Exact SAP Fiori Horizon & Shell Theme Custom Styling
+# SAP Fiori Horizon Theme Styling + Red Asterisks CSS
 st.markdown("""
     <style>
-    /* SAP Global Background & Font */
     .stApp {
         background-color: #f5f6f7;
         font-family: "72", "72full", Arial, Helvetica, sans-serif;
@@ -43,12 +42,11 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Hide Streamlit file uploader default size limit subtext ("200MB per file...") */
+    /* Hide Streamlit file uploader default size limit subtext */
     [data-testid="stFileUploader"] section small {
         display: none !important;
     }
 
-    /* SAP Fiori Header Bar Style */
     .main-header {
         font-size: 20px; 
         font-weight: 600; 
@@ -65,7 +63,6 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
-    /* SAP Enterprise Primary Buttons */
     .stButton>button {
         width: 100%; 
         border-radius: 4px; 
@@ -82,7 +79,6 @@ st.markdown("""
         border: 1px solid #005cc5;
     }
 
-    /* SAP Shell Dark Sidebar (Exact Color Match: #1d2d3e) */
     section[data-testid="stSidebar"] {
         background-color: #1d2d3e;
         color: #ffffff;
@@ -95,19 +91,16 @@ st.markdown("""
         color: #ffffff !important;
     }
     
-    /* Radio options text styling in sidebar */
     section[data-testid="stSidebar"] div[data-baseweb="radio"] div {
         color: #ffffff !important;
     }
 
-    /* SAP Form Input Labels Styling */
     div[data-testid="stForm"] label p {
         font-size: 14px !important;
         font-weight: 600 !important;
-        color: #0070f2 !important;
+        color: #b00000 !important;
     }
     
-    /* SAP Card Container Styling for Forms */
     div[data-testid="stForm"] {
         background-color: #ffffff;
         padding: 24px;
@@ -144,7 +137,6 @@ def fetch_records():
 
 PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
 
-# --- SAP SIDEBAR SHELL HEADER & NAVIGATION ---
 st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 100px; margin-bottom: 10px; background: white; padding: 5px; border-radius: 4px;'>", unsafe_allow_html=True)
 
 components.html("""
@@ -191,7 +183,6 @@ else:
 
 is_admin_or_kapil = st.session_state.user_role in ["Admin", "Super Admin"] or (st.session_state.username and st.session_state.username.lower() == "kapil")
 
-# --- MAIN APP ROUTING ---
 if not st.session_state.authenticated:
     col_logo, col_title = st.columns([2, 6])
     with col_logo:
@@ -333,15 +324,15 @@ elif page == "New Expense Claim":
         with col1:
             claim_date = st.date_input("Claim Date", datetime.today())
             entry_date = st.date_input("Entry Date", datetime.today())
-            receipt_number = st.text_input("Petty Cash Slip / Receipt Number* (e.g. 1024)")
-            category = st.selectbox("Category*", ["Travel", "Office Supplies", "Maintenance", "Food & Beverage", "Utility", "Other"])
+            receipt_number = st.text_input("Petty Cash Slip / Receipt Number <span style='color: #bb0000;'>*</span> (e.g. 1024)")
+            category = st.selectbox("Category <span style='color: #bb0000;'>*</span>", ["Travel", "Office Supplies", "Maintenance", "Food & Beverage", "Utility", "Other"])
         with col2:
             amount = st.number_input("Amount", min_value=0.0, step=10.0, format="%.2f")
-            merchant = st.text_input("Merchant / Vendor Name*")
-            description = st.text_area("Description / Reason*")
+            merchant = st.text_input("Merchant / Vendor Name <span style='color: #bb0000;'>*</span>", placeholder="")
+            description = st.text_area("Description / Reason <span style='color: #bb0000;'>*</span>")
             
         st.markdown("<hr style='margin: 15px 0; border-color: #eee;'>", unsafe_allow_html=True)
-        st.markdown("<p style='font-size: 14px; font-weight: 600; color: #1d2d3e;'>📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size: 14px; font-weight: 600; color: #bb0000;'>📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)</p>", unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload receipts/bills (Images or PDFs)", 
             type=["png", "jpg", "jpeg", "pdf"], 
