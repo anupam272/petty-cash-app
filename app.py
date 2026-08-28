@@ -150,7 +150,7 @@ if page == "Dashboard & Claims":
     if not df.empty:
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Claims", len(df))
-        amt_col = 'invoice_amount' if 'invoice_amount' in df.columns else 'amount'
+        amt_col = 'amount' if 'amount' in df.columns else 'invoice_amount'
         col2.metric("Total Amount", f"₹ {df[amt_col].sum():,.2f}")
         col3.metric("Pending Approvals", len(df[df['status'].isin(['Pending', 'Submitted'])]))
         
@@ -159,11 +159,11 @@ if page == "Dashboard & Claims":
         st.info("No petty cash claims found.")
 
 elif page == "New Expense Claim":
-    st.markdown("<div class='main-header'>📝 Submit New Claim with Duplicate & OCR Validation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>📝 Submit New Claim with Auto-Validation & OCR Table</div>", unsafe_allow_html=True)
     
     assigned_prism_id = user_data.get("assigned_prism_id", "")
     assigned_region = user_data.get("assigned_region", "")
-    hotel_name = ""
+    property_name = ""
     
     currency = "₹"
     if assigned_region and assigned_region.lower() == "europe":
@@ -173,7 +173,7 @@ elif page == "New Expense Claim":
         try:
             h_res = supabase.table("hotel_master").select("property_name", "currency").eq("prism_id", assigned_prism_id).execute()
             if h_res.data:
-                hotel_name = h_res.data[0].get("property_name", "")
+                property_name = h_res.data[0].get("property_name", "")
                 db_currency = h_res.data[0].get("currency", "")
                 if db_currency:
                     currency = db_currency
@@ -183,15 +183,13 @@ elif page == "New Expense Claim":
     with st.form("claim_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
-            claim_date = st.date_input("Entry Date", datetime.today())
-            category = st.selectbox("Expense Type*", ["Travel", "Office Supplies", "Maintenance", "Food & Beverage", "Utility", "Other"])
-            subtype = st.text_input("Subtype (e.g., Taxi, Stationery)")
-            invoice_amount = st.number_input(f"Invoice Amount ({currency})", min_value=0.0, step=10.0, format="%.2f")
+            claim_date = st.date_input("Claim Date", datetime.today())
+            entry_date = st.date_input("Entry Date", datetime.today())
+            category = st.selectbox("Category*", ["Travel", "Office Supplies", "Maintenance", "Food & Beverage", "Utility", "Other"])
+            amount = st.number_input(f"Amount ({currency})", min_value=0.0, step=10.0, format="%.2f")
         with col2:
-            vendor_name = st.text_input("Vendor Name*")
-            receipt_no = st.text_input("Receipt / Bill No.*")
-            description = st.text_area("Description / Reason")
-            remarks = st.text_input("Remarks (Optional)")
+            merchant = st.text_input("Merchant / Vendor Name*")
+            description = st.text_area("Description / Reason*")
             
         st.markdown("---")
         st.markdown("**📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)**")
@@ -206,26 +204,17 @@ elif page == "New Expense Claim":
             if not uploaded_files:
                 st.error("❌ Submission Failed: At least 1 Bill / Receipt attachment is required!")
                 st.stop()
-            if invoice_amount <= 0:
-                st.error("❌ Please enter a valid Invoice Amount.")
+            if amount <= 0:
+                st.error("❌ Please enter a valid Amount.")
                 st.stop()
-            if not vendor_name.strip() or not receipt_no.strip():
-                st.error("❌ Vendor Name and Receipt No. are mandatory.")
+            if not merchant.strip() or not description.strip():
+                st.error("❌ Merchant Name and Description are mandatory.")
                 st.stop()
                 
-            # 1. DUPLICATE RECEIPT CHECK IN DATABASE
-            try:
-                dup_check = supabase.table("petty_cash").select("id, receipt_no, vendor_name").eq("oyo_id", assigned_prism_id).eq("receipt_no", receipt_no.strip()).execute()
-                if dup_check.data:
-                    st.error(f"❌ **Duplicate Blocked:** Receipt Number `{receipt_no}` has already been submitted for this property! You cannot reuse the same invoice/receipt.")
-                    st.stop()
-            except Exception as d_err:
-                pass
-
             extracted_receipt_rows = []
             amount_matched = False
             
-            # 2. OCR VERIFICATION & ITEMIZATION TABLE
+            # OCR & Receipt Table Generation
             if OCR_AVAILABLE and uploaded_files:
                 with st.spinner("🤖 Scanning receipt items & amounts via OCR..."):
                     try:
@@ -244,13 +233,13 @@ elif page == "New Expense Claim":
                             extracted_receipt_rows.append({
                                 "Receipt Index": f_idx + 1,
                                 "File Name": file_obj.name,
-                                "Vendor": vendor_name,
+                                "Merchant": merchant,
                                 "Max Amount Found": max_detected_amt,
                                 "Extracted Snippet": full_text_str[:100] + "..."
                             })
                             
                             for num in clean_numbers:
-                                if abs(num - invoice_amount) < 1.0:
+                                if abs(num - amount) < 1.0:
                                     amount_matched = True
                                     break
                     except Exception as e:
@@ -261,18 +250,18 @@ elif page == "New Expense Claim":
                 st.dataframe(pd.DataFrame(extracted_receipt_rows), use_container_width=True)
                 
                 if not amount_matched:
-                    st.error(f"❌ **Validation Failed:** Entered amount `{invoice_amount}` does not match any numeric value found in the attached receipt scan!")
+                    st.error(f"❌ **Validation Failed:** Entered amount `{amount}` does not match any numeric value found in the attached receipt scan!")
                     st.stop()
                 else:
                     st.success("✅ **Validation Passed:** Amount verified against receipt items table.")
 
-            # 3. UPLOAD & SAVE CLAIM
+            # UPLOAD & SAVE TO SUPABASE
             try:
                 uploaded_urls = []
                 for idx, file_obj in enumerate(uploaded_files):
                     file_ext = file_obj.name.split(".")[-1]
                     unique_suffix = int(datetime.now().timestamp() * 1000)
-                    file_name = f"{assigned_prism_id}_{claim_date}_{receipt_no}_{idx+1}_{unique_suffix}.{file_ext}"
+                    file_name = f"{assigned_prism_id}_{claim_date}_{merchant}_{idx+1}_{unique_suffix}.{file_ext}"
                     file_bytes = file_obj.read()
                     storage_path = f"receipts/{file_name}"
                     
@@ -288,24 +277,19 @@ elif page == "New Expense Claim":
                 unique_id = f"Prism{prism_clean}-{int(datetime.now().timestamp())}"
                 
                 new_data = {
-                    "unique_id": unique_id,
                     "created_at": datetime.now().isoformat(),
                     "submitted_by": st.session_state.username,
-                    "entry_date": str(claim_date),
-                    "oyo_id": assigned_prism_id,
-                    "property_name": hotel_name,
-                    "property_region": assigned_region,
+                    "claim_date": str(claim_date),
+                    "entry_date": str(entry_date),
+                    "category": category,
+                    "amount": amount,
                     "currency": currency,
-                    "exp_type": category,
-                    "subtype": subtype,
-                    "invoice_amount": invoice_amount,
-                    "amount": invoice_amount,
-                    "vendor_name": vendor_name,
-                    "receipt_no": receipt_no,
+                    "merchant": merchant,
                     "description": description,
-                    "remarks": remarks,
                     "status": "Submitted",
-                    "receipt_url": json.dumps(uploaded_urls)
+                    "property_name": property_name,
+                    "oyo_id": assigned_prism_id,
+                    "unique_id": unique_id
                 }
                 supabase.table("petty_cash").insert(new_data).execute()
                 st.success(f"✅ Claim Submitted Successfully! Unique ID: {unique_id}")
@@ -320,34 +304,21 @@ elif page == "Approvals Workflow":
             pending_df = df[df["status"].isin(["Pending", "Submitted"])]
             if not pending_df.empty:
                 for idx, row in pending_df.iterrows():
-                    amt_val = row.get('invoice_amount', row.get('amount', 0))
-                    cat_val = row.get('exp_type', row.get('category', 'General'))
-                    date_val = row.get('entry_date', row.get('claim_date', ''))
+                    amt_val = row.get('amount', 0)
+                    cat_val = row.get('category', 'General')
+                    date_val = row.get('claim_date', '')
                     row_id = row['id']
                     
                     with st.expander(f"Claim #{row_id} - {row.get('currency', '₹')} {amt_val} ({row['submitted_by']})"):
                         st.write(f"**Unique ID:** {row.get('unique_id', 'N/A')}")
-                        st.write(f"**Category:** {cat_val} / {row.get('subtype', '')}")
-                        st.write(f"**Vendor:** {row.get('vendor_name', 'N/A')} | **Receipt No:** {row.get('receipt_no', 'N/A')}")
-                        st.write(f"**Reason:** {row.get('description', '')}")
-                        st.write(f"**Date:** {date_val}")
-                        
-                        receipt_data = row.get('receipt_url')
-                        if receipt_data:
-                            try:
-                                urls = json.loads(receipt_data) if isinstance(receipt_data, str) else receipt_data
-                                if isinstance(urls, list):
-                                    st.markdown("**Attached Receipts:**")
-                                    for u_idx, u_link in enumerate(urls):
-                                        st.markdown(f"- [View Attachment {u_idx+1}]({u_link})")
-                                elif isinstance(urls, str):
-                                    st.markdown(f"- [View Attachment]({urls})")
-                            except Exception:
-                                st.markdown(f"- [View Attachment]({receipt_data})")
+                        st.write(f"**Property Name:** {row.get('property_name', 'N/A')} ({row.get('oyo_id', 'N/A')})")
+                        st.write(f"**Category:** {cat_val}")
+                        st.write(f"**Merchant:** {row.get('merchant', 'N/A')} | **Date:** {date_val}")
+                        st.write(f"**Description:** {row.get('description', '')}")
                         
                         col1, col2 = st.columns(2)
                         if col1.button(f"Approve #{row_id}", key=f"app_{row_id}"):
-                            supabase.table("petty_cash").update({"status": "Approved", "approved_by": st.session_state.username}).eq("id", row_id).execute()
+                            supabase.table("petty_cash").update({"status": "Approved"}).eq("id", row_id).execute()
                             st.success(f"Claim #{row_id} Approved!")
                             st.rerun()
                         if col2.button(f"Reject #{row_id}", key=f"rej_{row_id}"):
