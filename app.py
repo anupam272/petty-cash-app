@@ -151,7 +151,7 @@ elif page == "New Expense Claim":
     hotel_name = ""
     currency = "₹"
     if assigned_prism_id:
-        h_res = supabase.table("Hotel_Master").select("Property_Name, Currency").eq("Prism_id", assigned_prism_id).execute()
+       h_res = supabase.table("hotel_master").select("property_name", "currency").eq("prism_id", assigned_prism_id)
         if h_res.data:
             hotel_name = h_res.data[0].get("Property_Name", "")
             currency = h_res.data[0].get("Currency", "₹")
