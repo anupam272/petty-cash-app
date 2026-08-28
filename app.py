@@ -185,11 +185,11 @@ if user_data and not user_data.get("email"):
                     st.rerun()
     st.stop()
 
-# SAP Corporate Sidebar with Live Local Time Component (Supports UK/Europe/Global Local System Times)
+# SAP Corporate Sidebar with Blue Live Local Time Component
 st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 5px;'>", unsafe_allow_html=True)
 
 components.html("""
-    <div id="local-time" style="font-size: 13px; color: #ffffff; font-weight: 600; margin-bottom: 10px; font-family: '72', Arial, sans-serif;">
+    <div id="local-time" style="font-size: 13px; color: #4da6ff; font-weight: 600; margin-bottom: 10px; font-family: '72', Arial, sans-serif;">
         📅 Loading local time...
     </div>
     <script>
