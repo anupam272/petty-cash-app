@@ -43,13 +43,13 @@ if "user_info" not in st.session_state:
 # Password Policy Function
 def check_password_policy(password):
     if len(password) < 8:
-        return False, "Password kam se kam 8 characters ka hona chahiye."
+        return False, "Password must be at least 8 characters long."
     if not re.search(r"[A-Z]", password):
-        return False, "Kam se kam 1 Capital letter (A-Z) hona zaroori hai."
+        return False, "At least 1 Capital letter (A-Z) is required."
     if not re.search(r"\d", password):
-        return False, "Kam se kam 1 Number (0-9) hona zaroori hai."
+        return False, "At least 1 Number (0-9) is required."
     if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>/?]", password):
-        return False, "Kam se kam 1 Special character (@, #, $) hona zaroori hai."
+        return False, "At least 1 Special character (@, #, $) is required."
     return True, "Valid"
 
 # Helper Functions
@@ -86,7 +86,7 @@ user_data = st.session_state.user_info
 if user_data and not user_data.get("email"):
     st.markdown("<div class='main-header'>⚠️ Security Setup: Register Email & Update Password</div>", unsafe_allow_html=True)
     with st.form("setup_form"):
-        st.warning(f"Welcome **{user_data['username']}**! First-time login par apni official email aur naya strong password set karna mandatory hai.")
+        st.warning(f"Welcome **{user_data['username']}**! First-time login requires setting up your official email and a strong new password.")
         new_email = st.text_input("Official Email Address:")
         new_pass = st.text_input("New Password:", type="password")
         confirm_pass = st.text_input("Confirm New Password:", type="password")
@@ -94,9 +94,9 @@ if user_data and not user_data.get("email"):
         
         if setup_submit:
             if not ("@" in new_email and "." in new_email):
-                st.error("Kripya valid email address enter karein.")
+                st.error("Please enter a valid email address.")
             elif new_pass != confirm_pass:
-                st.error("Passwords match nahi kar rahe hain.")
+                st.error("Passwords do not match.")
             else:
                 is_valid, msg = check_password_policy(new_pass)
                 if not is_valid:
@@ -149,12 +149,19 @@ elif page == "New Expense Claim":
     assigned_prism_id = user_data.get("assigned_prism_id", "")
     assigned_region = user_data.get("assigned_region", "")
     hotel_name = ""
+    
+    # Currency mapping based on Region or Hotel Master entry (Defaulting European regions to EUR/GBP or INR)
     currency = "₹"
+    if assigned_region and assigned_region.lower() == "europe":
+        currency = "EUR" # Default European currency (can be EUR or GBP depending on preference)
+    
     if assigned_prism_id:
-       h_res = supabase.table("hotel_master").select("property_name", "currency").eq("prism_id", assigned_prism_id)
+        h_res = supabase.table("hotel_master").select("property_name", "currency").eq("prism_id", assigned_prism_id).execute()
         if h_res.data:
-            hotel_name = h_res.data[0].get("Property_Name", "")
-            currency = h_res.data[0].get("Currency", "₹")
+            hotel_name = h_res.data[0].get("property_name", "")
+            db_currency = h_res.data[0].get("currency", "")
+            if db_currency:
+                currency = db_currency
 
     with st.form("claim_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
@@ -180,13 +187,13 @@ elif page == "New Expense Claim":
         submitted = st.form_submit_button("Submit Claim")
         if submitted:
             if not uploaded_files:
-                st.error("❌ Submission Failed: Kam se kam 1 Bill / Receipt Attachment upload karna zaroori hai!")
+                st.error("❌ Submission Failed: At least 1 Bill / Receipt attachment is required!")
                 st.stop()
             if invoice_amount <= 0:
                 st.error("❌ Please enter a valid Invoice Amount.")
                 st.stop()
             if not vendor_name.strip() or not receipt_no.strip():
-                st.error("❌ Vendor Name aur Receipt No. bharna zaroori hai.")
+                st.error("❌ Vendor Name and Receipt No. are mandatory.")
                 st.stop()
                 
             try:
