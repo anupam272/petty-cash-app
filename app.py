@@ -193,7 +193,7 @@ if page == "Dashboard & Claims":
 
             col1, col2, col3 = st.columns(3)
             col1.metric("Total Filtered Claims", len(filtered_df))
-            col2.metric("Total Amount", f"₹ {filtered_df['amount'].sum():,.2f}")
+            col2.metric("Total Amount", f"{filtered_df['amount'].sum():,.2f}")
             col3.metric("Pending Approvals", len(filtered_df[filtered_df['status'].isin(['Pending', 'Submitted'])]))
             
             st.dataframe(filtered_df, use_container_width=True)
@@ -210,21 +210,14 @@ elif page == "New Expense Claim":
     property_name = ""
     property_short_name = "prop"
     
-    currency = "₹"
-    if assigned_region and assigned_region.lower() == "europe":
-        currency = "EUR"
-    
+    currency_label = ""
     if assigned_prism_id:
         try:
             h_res = supabase.table("hotel_master").select("*").eq("prism_id", assigned_prism_id).execute()
             if h_res.data:
                 property_name = h_res.data[0].get("property_name", "")
-                # Making short name clean and lowercase (e.g., walton)
                 raw_short = h_res.data[0].get("short_name", assigned_prism_id.split('_')[-1])
                 property_short_name = "".join(e for e in raw_short if e.isalnum()).lower()
-                db_currency = h_res.data[0].get("currency", "")
-                if db_currency:
-                    currency = db_currency
         except Exception:
             property_short_name = assigned_prism_id.split('_')[-1].lower() if assigned_prism_id else "prop"
 
@@ -236,7 +229,7 @@ elif page == "New Expense Claim":
             invoice_number = st.text_input("Invoice Number* (e.g. 1024)")
             category = st.selectbox("Category*", ["Travel", "Office Supplies", "Maintenance", "Food & Beverage", "Utility", "Other"])
         with col2:
-            amount = st.number_input(f"Amount ({currency})", min_value=0.0, step=10.0, format="%.2f")
+            amount = st.number_input("Amount", min_value=0.0, step=10.0, format="%.2f")
             merchant = st.text_input("Merchant / Vendor Name*")
             description = st.text_area("Description / Reason*")
             
@@ -263,7 +256,6 @@ elif page == "New Expense Claim":
                 st.error("❌ Merchant Name and Description are mandatory.")
                 st.stop()
                 
-            # DUPLICATE INVOICE CHECK
             clean_inv_check = invoice_number.strip()
             existing_check = supabase.table("petty_cash").select("id").eq("invoice_number", clean_inv_check).eq("prism_id", assigned_prism_id).execute()
             if existing_check.data:
@@ -313,7 +305,6 @@ elif page == "New Expense Claim":
                 else:
                     st.success("✅ **Validation Passed:** Amount verified against receipt items table.")
 
-            # UPLOAD & SAVE TO SUPABASE WITH FORMAT: propertyShortName_inv_invoiceNumber
             try:
                 uploaded_urls = []
                 for idx, file_obj in enumerate(uploaded_files):
@@ -342,7 +333,7 @@ elif page == "New Expense Claim":
                     "invoice_number": invoice_number,
                     "category": category,
                     "amount": amount,
-                    "currency": currency,
+                    "currency": "",
                     "merchant": merchant,
                     "description": description,
                     "status": "Submitted",
@@ -369,7 +360,7 @@ elif page == "Approvals Workflow":
                     date_val = row.get('claim_date', '')
                     row_id = row['id']
                     
-                    with st.expander(f"Claim #{row_id} - Inv: {row.get('invoice_number', 'N/A')} - {row.get('currency', '₹')} {amt_val} ({row['submitted_by']})"):
+                    with st.expander(f"Claim #{row_id} - Inv: {row.get('invoice_number', 'N/A')} - Amount: {amt_val} ({row['submitted_by']})"):
                         st.write(f"**Unique ID:** {row.get('unique_id', 'N/A')}")
                         st.write(f"**Property Name:** {row.get('property_name', 'N/A')} ({row.get('prism_id', 'N/A')})")
                         st.write(f"**Invoice Number:** {row.get('invoice_number', 'N/A')}")
