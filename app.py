@@ -9,12 +9,6 @@ import re
 import io
 
 try:
-    from geopy.geocoders import Nominatim
-    GEOPY_AVAILABLE = True
-except ImportError:
-    GEOPY_AVAILABLE = False
-
-try:
     import easyocr
     @st.cache_resource
     def load_ocr_reader():
@@ -151,24 +145,35 @@ def fetch_hotel_masters():
         return pd.DataFrame()
 
 def fetch_records():
-    res = supabase.table("petty_cash").select("*").order("id", desc=True).execute()
-    df = pd.DataFrame(res.data) if res.data else pd.DataFrame()
+    try:
+        res = supabase.table("petty_cash").select("*").order("id", desc=True).execute()
+        df = pd.DataFrame(res.data) if res.data else pd.DataFrame()
+    except Exception:
+        df = pd.DataFrame()
     
-    if not df.empty:
-        hotels_df = fetch_hotel_masters()
-        if not hotels_df.empty:
-            if 'prism_id' in hotels_df.columns and 'prism_id' in df.columns:
-                hotel_map = hotels_df.set_index('prism_id')['property_name'].to_dict()
-                region_map = hotels_df.set_index('prism_id')['property_region'].to_dict()
+    hotels_df = fetch_hotel_masters()
+    
+    if not df.empty and not hotels_df.empty:
+        # Map hotel names and regions correctly based on prism_id
+        prism_col = 'prism_id' if 'prism_id' in df.columns else None
+        if prism_col and 'prism_id' in hotels_df.columns:
+            # Find property name column in hotels_df
+            h_name_col = 'property_name' if 'property_name' in hotels_df.columns else ('name' if 'name' in hotels_df.columns else None)
+            h_reg_col = 'property_region' if 'property_region' in hotels_df.columns else ('region' if 'region' in hotels_df.columns else None)
+            
+            if h_name_col and 'property_name' in df.columns:
+                hotel_map = hotels_df.set_index('prism_id')[h_name_col].to_dict()
+                df['property_name'] = df['property_name'].fillna(df[prism_col].map(hotel_map))
+            elif h_name_col and 'property_name' not in df.columns:
+                hotel_map = hotels_df.set_index('prism_id')[h_name_col].to_dict()
+                df['property_name'] = df[prism_col].map(hotel_map)
                 
-                if 'property_name' in df.columns:
-                    df['property_name'] = df['property_name'].apply(lambda x: x if (pd.notna(x) and str(x).strip() != "") else None)
-                    df['property_name'] = df['property_name'].fillna(df['prism_id'].map(hotel_map))
-                
+            if h_reg_col:
+                region_map = hotels_df.set_index('prism_id')[h_reg_col].to_dict()
                 if 'property_region' in df.columns:
-                    df['property_region'] = df['property_region'].fillna(df['prism_id'].map(region_map))
+                    df['property_region'] = df['property_region'].fillna(df[prism_col].map(region_map))
                 else:
-                    df['property_region'] = df['prism_id'].map(region_map)
+                    df['property_region'] = df[prism_col].map(region_map)
                     
     return df
 
@@ -296,18 +301,19 @@ if page == "Dashboard & Claims":
         with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
             
-            # 1. Region Filter (Strictly filtering out property codes/IDs)
+            # 1. Region Filter (Strictly text-based regions, filtering out IDs)
             with col_f1:
                 regions_set = set()
-                if not hotels_df.empty and 'property_region' in hotels_df.columns:
-                    for r in hotels_df['property_region'].dropna():
-                        r_str = str(r).strip()
-                        # Region should not look like a prism_id (e.g. contains numbers or underscores like EN_WCW001)
-                        if r_str and r_str.lower() not in ["nan", "none"] and not any(char.isdigit() for char in r_str) and "_" not in r_str:
-                            regions_set.add(r_str)
+                if not hotels_df.empty:
+                    reg_col_target = 'property_region' if 'property_region' in hotels_df.columns else ('region' if 'region' in hotels_df.columns else None)
+                    if reg_col_target:
+                        for r in hotels_df[reg_col_target].dropna():
+                            r_str = str(r).strip()
+                            if r_str and r_str.lower() not in ["nan", "none"] and not any(char.isdigit() for char in r_str) and "_" not in r_str:
+                                regions_set.add(r_str)
                             
                 if not regions_set:
-                    regions_set = {"Europe", "Global", "Default"}
+                    regions_set = {"Europe", "Global", "Default", "Asia", "North America"}
                     
                 regions = ["All"] + sorted(list(regions_set))
                 selected_region = st.selectbox("1. Filter by Region", regions)
@@ -316,12 +322,15 @@ if page == "Dashboard & Claims":
             with col_f2:
                 hotel_set = set()
                 if not hotels_df.empty:
+                    name_col = 'property_name' if 'property_name' in hotels_df.columns else ('name' if 'name' in hotels_df.columns else None)
+                    short_col = 'short_name' if 'short_name' in hotels_df.columns else None
+                    
                     for _, h_row in hotels_df.iterrows():
-                        p_name = h_row.get('property_name', '') or h_row.get('name', '')
-                        s_name = h_row.get('short_name', '')
-                        display_str = f"{p_name} ({s_name})" if s_name and p_name else (p_name or s_name)
-                        if display_str and str(display_str).strip() != "" and str(display_str).lower() != "nan":
-                            hotel_set.add(str(display_str))
+                        p_name = str(h_row.get(name_col, '')) if name_col else ''
+                        s_name = str(h_row.get(short_col, '')) if short_col else ''
+                        display_str = f"{p_name} ({s_name})" if s_name and p_name and s_name.lower() != 'nan' else (p_name or s_name)
+                        if display_str and display_str.strip() != "" and display_str.lower() != "nan":
+                            hotel_set.add(display_str)
                 
                 if not df.empty and 'property_name' in df.columns:
                     for p in df['property_name'].dropna().unique():
@@ -361,12 +370,12 @@ if page == "Dashboard & Claims":
         filtered_df = df.copy() if not df.empty else pd.DataFrame()
         
         if not filtered_df.empty:
-            if selected_region != "All":
-                if not hotels_df.empty and 'property_region' in hotels_df.columns and 'property_name' in hotels_df.columns:
-                    matched_props = hotels_df[hotels_df['property_region'] == selected_region]['property_name'].tolist()
+            if selected_region != "All" and not hotels_df.empty:
+                reg_col_target = 'property_region' if 'property_region' in hotels_df.columns else ('region' if 'region' in hotels_df.columns else None)
+                name_col_target = 'property_name' if 'property_name' in hotels_df.columns else ('name' if 'name' in hotels_df.columns else None)
+                if reg_col_target and name_col_target:
+                    matched_props = hotels_df[hotels_df[reg_col_target] == selected_region][name_col_target].tolist()
                     filtered_df = filtered_df[filtered_df['property_name'].isin(matched_props)]
-                elif 'property_region' in filtered_df.columns:
-                    filtered_df = filtered_df[filtered_df['property_region'] == selected_region]
                     
             if selected_property != "All":
                 clean_prop_name = selected_property.split(" (")[0]
@@ -395,44 +404,6 @@ if page == "Dashboard & Claims":
             st.dataframe(filtered_df, use_container_width=True)
         else:
             st.info("No claims match the selected filter criteria.")
-        
-        # --- Map Section Integration ---
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("<div class='main-header'>🗺️ Property Location Map Overview</div>", unsafe_allow_html=True)
-        
-        map_lat, map_lon, map_zoom = 50.1109, 8.6821, 6 # Default Europe center
-        query_location_name = "Europe"
-        
-        if selected_property != "All":
-            query_location_name = selected_property.split(" (")[0]
-        elif selected_region != "All":
-            query_location_name = selected_region
-            
-        coord_found = False
-        if selected_property != "All" and not hotels_df.empty:
-            clean_p_name = selected_property.split(" (")[0]
-            matched_row = hotels_df[hotels_df['property_name'].str.contains(clean_p_name, case=False, na=False)]
-            if not matched_row.empty and 'latitude' in matched_row.columns and 'longitude' in matched_row.columns:
-                lat_val = matched_row.iloc[0].get('latitude')
-                lon_val = matched_row.iloc[0].get('longitude')
-                if pd.notna(lat_val) and pd.notna(lon_val):
-                    map_lat, map_lon = float(lat_val), float(lon_val)
-                    map_zoom = 11
-                    coord_found = True
-
-        if not coord_found and GEOPY_AVAILABLE:
-            try:
-                geolocator = Nominatim(user_agent="prism_petty_cash_app")
-                location_obj = geolocator.geocode(query_location_name)
-                if location_obj:
-                    map_lat = location_obj.latitude
-                    map_lon = location_obj.longitude
-                    map_zoom = 10
-            except Exception:
-                pass
-
-        map_data = pd.DataFrame({'lat': [map_lat], 'lon': [map_lon]})
-        st.map(map_data, zoom=map_zoom, use_container_width=True)
 
         # --- Visual Graphs Section ---
         st.markdown("<br>", unsafe_allow_html=True)
@@ -489,12 +460,16 @@ elif page == "New Expense Claim":
     property_name = ""
     property_short_name = "prop"
     
-    if assigned_prism_id:
+    if assigned_prism_id and not hotels_df.empty:
         try:
-            h_res = supabase.table("hotel_master").select("*").eq("prism_id", assigned_prism_id).execute()
-            if h_res.data:
-                property_name = h_res.data[0].get("property_name", "")
-                raw_short = h_res.data[0].get("short_name", assigned_prism_id.split('_')[-1])
+            matched_h = hotels_df[hotels_df['prism_id'] == assigned_prism_id]
+            if not matched_h.empty:
+                h_name_col = 'property_name' if 'property_name' in hotels_h_cols := matched_h.columns else ('name' if 'name' in matched_h.columns else None)
+                h_short_col = 'short_name' if 'short_name' in matched_h.columns else None
+                
+                if h_name_col:
+                    property_name = str(matched_h.iloc[0].get(h_name_col, ''))
+                raw_short = str(matched_h.iloc[0].get(h_short_col, assigned_prism_id.split('_')[-1])) if h_short_col else assigned_prism_id.split('_')[-1]
                 property_short_name = "".join(e for e in raw_short if e.isalnum()).lower()
         except Exception:
             property_short_name = assigned_prism_id.split('_')[-1].lower() if assigned_prism_id else "prop"
