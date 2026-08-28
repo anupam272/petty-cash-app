@@ -288,69 +288,81 @@ if page == "Dashboard & Claims":
     st.markdown("<div class='main-header'>📊 Dashboard & Claim Records</div>", unsafe_allow_html=True)
     df = fetch_records()
     
-    if not df.empty:
+    if not df.empty or not hotels_df.empty:
         if not is_admin_or_kapil and assigned_prism:
-            df = df[df['prism_id'] == assigned_prism]
+            if not df.empty and 'prism_id' in df.columns:
+                df = df[df['prism_id'] == assigned_prism]
             
-        if not df.empty:
-            with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
-                col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
+            col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+            
+            # 1. Region Filter
+            with col_f1:
+                regions_set = set()
+                if not hotels_df.empty:
+                    for col in ['property_region', 'region', 'city']:
+                        if col in hotels_df.columns:
+                            regions_set.update([str(r).strip() for r in hotels_df[col].dropna().unique() if str(r).strip() != "" and str(r).lower() != "nan" and str(r).lower() != "none"])
+                if not df.empty:
+                    for col in ['property_region', 'region', 'prism_id']:
+                        if col in df.columns:
+                            regions_set.update([str(r).strip() for r in df[col].dropna().unique() if str(r).strip() != "" and str(r).lower() != "nan" and str(r).lower() != "none"])
                 
-                # 1. Region Filter with "All" explicitly on top
-                with col_f1:
-                    regions_set = set()
-                    if not hotels_df.empty and 'property_region' in hotels_df.columns:
-                        regions_set.update([str(r) for r in hotels_df['property_region'].dropna().unique() if str(r).strip() != ""])
-                    if not df.empty:
-                        for col_name in ['property_region', 'region']:
-                            if col_name in df.columns:
-                                regions_set.update([str(r) for r in df[col_name].dropna().unique() if str(r).strip() != ""])
+                if not regions_set:
+                    regions_set = {"Europe", "Global", "Default"}
                     
-                    regions = ["All"] + sorted(list(regions_set))
-                    selected_region = st.selectbox("1. Filter by Region", regions)
+                regions = ["All"] + sorted(list(regions_set))
+                selected_region = st.selectbox("1. Filter by Region", regions)
 
-                # 2. Property / Hotel Name Filter with "All" explicitly on top
-                with col_f2:
-                    hotel_set = set()
-                    filtered_hotels_df = hotels_df.copy()
-                    if selected_region != "All" and not filtered_hotels_df.empty and 'property_region' in filtered_hotels_df.columns:
-                        filtered_hotels_df = filtered_hotels_df[filtered_hotels_df['property_region'] == selected_region]
-                    
-                    if not filtered_hotels_df.empty and 'property_name' in filtered_hotels_df.columns:
-                        for _, h_row in filtered_hotels_df.iterrows():
-                            p_name = h_row.get('property_name', '')
-                            s_name = h_row.get('short_name', '')
-                            display_str = f"{p_name} ({s_name})" if s_name else p_name
-                            if display_str and str(display_str).strip() != "":
-                                hotel_set.add(display_str)
-                    
-                    if len(hotel_set) == 0 and not df.empty and 'property_name' in df.columns:
-                        for p in df['property_name'].dropna().unique():
-                            if str(p).strip():
-                                hotel_set.add(str(p))
-                                
-                    hotel_options = ["All"] + sorted(list(hotel_set))
-                    selected_property = st.selectbox("2. Hotel / Property Slicer", hotel_options)
+            # 2. Property / Hotel Name Filter
+            with col_f2:
+                hotel_set = set()
+                if not hotels_df.empty:
+                    for _, h_row in hotels_df.iterrows():
+                        p_name = h_row.get('property_name', '') or h_row.get('name', '')
+                        s_name = h_row.get('short_name', '')
+                        display_str = f"{p_name} ({s_name})" if s_name and p_name else (p_name or s_name)
+                        if display_str and str(display_str).strip() != "" and str(display_str).lower() != "nan":
+                            hotel_set.add(str(display_str))
+                
+                if not df.empty and 'property_name' in df.columns:
+                    for p in df['property_name'].dropna().unique():
+                        if str(p).strip() and str(p).lower() != "nan":
+                            hotel_set.add(str(p))
+                            
+                if not hotel_set:
+                    hotel_set = {"All Properties Global", "Sunday Residence"}
+                            
+                hotel_options = ["All"] + sorted(list(hotel_set))
+                selected_property = st.selectbox("2. Hotel / Property Slicer", hotel_options)
 
-                # 3. Date Range Filter (From Date & To Date)
-                with col_f3:
+            # 3. Date Range Filter
+            with col_f3:
+                if not df.empty and 'claim_date' in df.columns:
                     df['parsed_date'] = pd.to_datetime(df['claim_date'], errors='coerce')
                     min_dt = df['parsed_date'].min() if not df['parsed_date'].isna().all() else date(2026, 1, 1)
                     max_dt = df['parsed_date'].max() if not df['parsed_date'].isna().all() else date(2026, 12, 31)
-                    if pd.isna(min_dt): min_dt = date(2026, 1, 1)
-                    if pd.isna(max_dt): max_dt = date(2026, 12, 31)
-                    
-                    date_range = st.date_input("3. Filter by Date Range", value=(min_dt, max_dt))
+                else:
+                    min_dt, max_dt = date(2026, 1, 1), date(2026, 12, 31)
+                
+                if pd.isna(min_dt): min_dt = date(2026, 1, 1)
+                if pd.isna(max_dt): max_dt = date(2026, 12, 31)
+                
+                date_range = st.date_input("3. Filter by Date Range", value=(min_dt, max_dt))
 
-                # 4. Vendor / Merchant Filter with "All" explicitly on top
-                with col_f4:
-                    merchants_set = set()
-                    if not df.empty and 'merchant' in df.columns:
-                        merchants_set.update([str(m) for m in df['merchant'].dropna().unique() if str(m).strip() != ""])
-                    merchants = ["All"] + sorted(list(merchants_set))
-                    selected_merchant = st.selectbox("4. Filter by Vendor / Merchant", merchants)
+            # 4. Vendor / Merchant Filter
+            with col_f4:
+                merchants_set = set()
+                if not df.empty and 'merchant' in df.columns:
+                    merchants_set.update([str(m).strip() for m in df['merchant'].dropna().unique() if str(m).strip() != "" and str(m).lower() != "nan"])
+                if not merchants_set:
+                    merchants_set = {"All Vendors"}
+                merchants = ["All"] + sorted(list(merchants_set))
+                selected_merchant = st.selectbox("4. Filter by Vendor / Merchant", merchants)
 
-            filtered_df = df.copy()
+        filtered_df = df.copy() if not df.empty else pd.DataFrame()
+        
+        if not filtered_df.empty:
             if selected_region != "All":
                 if not hotels_df.empty and 'property_region' in hotels_df.columns and 'property_name' in hotels_df.columns:
                     matched_props = hotels_df[hotels_df['property_region'] == selected_region]['property_name'].tolist()
@@ -364,117 +376,115 @@ if page == "Dashboard & Claims":
                 clean_prop_name = selected_property.split(" (")[0]
                 filtered_df = filtered_df[filtered_df['property_name'] == clean_prop_name]
                 
-            # Date Range Filtering Logic
-            if isinstance(date_range, tuple) and len(date_range) == 2:
+            if isinstance(date_range, tuple) and len(date_range) == 2 and 'parsed_date' in filtered_df.columns:
                 start_d, end_d = date_range
                 if start_d:
                     filtered_df = filtered_df[filtered_df['parsed_date'].dt.date >= start_d]
                 if end_d:
                     filtered_df = filtered_df[filtered_df['parsed_date'].dt.date <= end_d]
 
-            if selected_merchant != "All":
+            if selected_merchant != "All" and 'merchant' in filtered_df.columns:
                 filtered_df = filtered_df[filtered_df['merchant'] == selected_merchant]
 
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total Filtered Claims", len(filtered_df))
-            col2.metric("Total Amount", f"{filtered_df['amount'].sum():,.2f}")
-            col3.metric("Pending Approvals", len(filtered_df[filtered_df['status'].isin(['Pending', 'Submitted'])]))
-            
+        total_claims_len = len(filtered_df)
+        total_amt_sum = filtered_df['amount'].sum() if not filtered_df.empty and 'amount' in filtered_df.columns else 0.0
+        pending_len = len(filtered_df[filtered_df['status'].isin(['Pending', 'Submitted'])]) if not filtered_df.empty and 'status' in filtered_df.columns else 0
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Filtered Claims", total_claims_len)
+        col2.metric("Total Amount", f"{total_amt_sum:,.2f}")
+        col3.metric("Pending Approvals", pending_len)
+        
+        if not filtered_df.empty:
             st.dataframe(filtered_df, use_container_width=True)
-            
-            # --- Map Section Integration with Internet Geocoding ---
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<div class='main-header'>🗺️ Property Location Map Overview</div>", unsafe_allow_html=True)
-            
-            map_lat, map_lon, map_zoom = 53.4084, -2.9916, 11 # Default Liverpool coordinates
-            
-            query_location_name = "Liverpool"
-            if selected_property != "All":
-                query_location_name = selected_property.split(" (")[0]
-            elif selected_region != "All":
-                query_location_name = selected_region
-                
-            # Try fetching from database first if available
-            coord_found = False
-            if selected_property != "All" and not hotels_df.empty:
-                clean_p_name = selected_property.split(" (")[0]
-                matched_row = hotels_df[hotels_df['property_name'].str.contains(clean_p_name, case=False, na=False)]
-                if not matched_row.empty and 'latitude' in matched_row.columns and 'longitude' in matched_row.columns:
-                    lat_val = matched_row.iloc[0].get('latitude')
-                    lon_val = matched_row.iloc[0].get('longitude')
-                    if pd.notna(lat_val) and pd.notna(lon_val):
-                        map_lat, map_lon = float(lat_val), float(lon_val)
-                        map_zoom = 13
-                        coord_found = True
-
-            # If not in database, fetch live from internet using geopy
-            if not coord_found and GEOPY_AVAILABLE:
-                try:
-                    geolocator = Nominatim(user_agent="prism_petty_cash_app")
-                    location_obj = geolocator.geocode(query_location_name)
-                    if location_obj:
-                        map_lat = location_obj.latitude
-                        map_lon = location_obj.longitude
-                        map_zoom = 12
-                except Exception:
-                    pass
-
-            map_data = pd.DataFrame({
-                'lat': [map_lat],
-                'lon': [map_lon]
-            })
-            st.map(map_data, zoom=map_zoom, use_container_width=True)
-
-            # --- Visual Graphs Section ---
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<div class='main-header'>📈 Petty Cash Visual Analytics & Graphs</div>", unsafe_allow_html=True)
-            
-            if not filtered_df.empty:
-                filtered_df['month_year'] = filtered_df['parsed_date'].dt.strftime('%Y-%m')
-                
-                g_col1, g_col2 = st.columns(2)
-                
-                with g_col1:
-                    st.markdown("##### 📅 Month-wise Petty Cash Amount")
-                    monthly_df = filtered_df.groupby('month_year')['amount'].sum().reset_index().sort_values('month_year')
-                    if not monthly_df.empty:
-                        st.bar_chart(monthly_df.set_index('month_year'))
-                    else:
-                        st.info("No timeline data available for monthly chart.")
-
-                with g_col2:
-                    st.markdown("##### 🏢 Hotel-wise Petty Cash Amount")
-                    hotel_chart_df = filtered_df.groupby('property_name')['amount'].sum().reset_index()
-                    if not hotel_chart_df.empty:
-                        st.bar_chart(hotel_chart_df.set_index('property_name'))
-                    else:
-                        st.info("No data available for hotel chart.")
-
-                st.markdown("##### 🏷️ Vendor-wise Petty Cash Amount")
-                vendor_chart_df = filtered_df.groupby('merchant')['amount'].sum().reset_index()
-                if not vendor_chart_df.empty:
-                    st.bar_chart(vendor_chart_df.set_index('merchant'))
-                else:
-                    st.info("No data available for vendor chart.")
-            else:
-                st.info("No data available in current filter selection to render graphs.")
-            
-            # --- Uploaded Bills & Receipts Database/Table Section ---
-            st.markdown("<br>", unsafe_allow_html=True)
-            st.markdown("<div class='main-header'>📑 Uploaded Bills, Receipts & Invoices Archive</div>", unsafe_allow_html=True)
-            try:
-                bills_res = supabase.table("petty_cash").select("id, unique_id, receipt_number, merchant, amount, claim_date, receipt_url, submitted_by, property_name").not_.is_("receipt_url", "null").execute()
-                if bills_res.data:
-                    bills_df = pd.DataFrame(bills_res.data)
-                    st.dataframe(bills_df, use_container_width=True)
-                else:
-                    st.info("No bills or receipts found in storage archive.")
-            except Exception as b_err:
-                st.info("No separate bills archive table configured or reachable.")
         else:
-            st.info("No records found for your assigned property.")
+            st.info("No claims match the selected filter criteria.")
+        
+        # --- Map Section Integration ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div class='main-header'>🗺️ Property Location Map Overview</div>", unsafe_allow_html=True)
+        
+        map_lat, map_lon, map_zoom = 50.1109, 8.6821, 6 # Default Europe center
+        query_location_name = "Europe"
+        
+        if selected_property != "All":
+            query_location_name = selected_property.split(" (")[0]
+        elif selected_region != "All":
+            query_location_name = selected_region
+            
+        coord_found = False
+        if selected_property != "All" and not hotels_df.empty:
+            clean_p_name = selected_property.split(" (")[0]
+            matched_row = hotels_df[hotels_df['property_name'].str.contains(clean_p_name, case=False, na=False)]
+            if not matched_row.empty and 'latitude' in matched_row.columns and 'longitude' in matched_row.columns:
+                lat_val = matched_row.iloc[0].get('latitude')
+                lon_val = matched_row.iloc[0].get('longitude')
+                if pd.notna(lat_val) and pd.notna(lon_val):
+                    map_lat, map_lon = float(lat_val), float(lon_val)
+                    map_zoom = 11
+                    coord_found = True
+
+        if not coord_found and GEOPY_AVAILABLE:
+            try:
+                geolocator = Nominatim(user_agent="prism_petty_cash_app")
+                location_obj = geolocator.geocode(query_location_name)
+                if location_obj:
+                    map_lat = location_obj.latitude
+                    map_lon = location_obj.longitude
+                    map_zoom = 10
+            except Exception:
+                pass
+
+        map_data = pd.DataFrame({'lat': [map_lat], 'lon': [map_lon]})
+        st.map(map_data, zoom=map_zoom, use_container_width=True)
+
+        # --- Visual Graphs Section ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div class='main-header'>📈 Petty Cash Visual Analytics & Graphs</div>", unsafe_allow_html=True)
+        
+        if not filtered_df.empty and 'parsed_date' in filtered_df.columns:
+            filtered_df['month_year'] = filtered_df['parsed_date'].dt.strftime('%Y-%m')
+            g_col1, g_col2 = st.columns(2)
+            
+            with g_col1:
+                st.markdown("##### 📅 Month-wise Petty Cash Amount")
+                monthly_df = filtered_df.groupby('month_year')['amount'].sum().reset_index().sort_values('month_year')
+                if not monthly_df.empty:
+                    st.bar_chart(monthly_df.set_index('month_year'))
+                else:
+                    st.info("No timeline data available.")
+
+            with g_col2:
+                st.markdown("##### 🏢 Hotel-wise Petty Cash Amount")
+                hotel_chart_df = filtered_df.groupby('property_name')['amount'].sum().reset_index()
+                if not hotel_chart_df.empty:
+                    st.bar_chart(hotel_chart_df.set_index('property_name'))
+                else:
+                    st.info("No data available.")
+
+            st.markdown("##### 🏷️ Vendor-wise Petty Cash Amount")
+            vendor_chart_df = filtered_df.groupby('merchant')['amount'].sum().reset_index()
+            if not vendor_chart_df.empty:
+                st.bar_chart(vendor_chart_df.set_index('merchant'))
+            else:
+                st.info("No data available.")
+        else:
+            st.info("No data available to render graphs.")
+        
+        # --- Uploaded Bills & Receipts Database Section ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div class='main-header'>📑 Uploaded Bills, Receipts & Invoices Archive</div>", unsafe_allow_html=True)
+        try:
+            bills_res = supabase.table("petty_cash").select("id, unique_id, receipt_number, merchant, amount, claim_date, receipt_url, submitted_by, property_name").not_.is_("receipt_url", "null").execute()
+            if bills_res.data:
+                bills_df = pd.DataFrame(bills_res.data)
+                st.dataframe(bills_df, use_container_width=True)
+            else:
+                st.info("No bills or receipts found in storage archive.")
+        except Exception:
+            st.info("No separate bills archive table configured or reachable.")
     else:
-        st.info("No petty cash claims found in database.")
+        st.info("No hotel master or petty cash records found in database.")
 
 elif page == "New Expense Claim":
     st.markdown("<div class='main-header'>📝 Submit New Claim with Auto-Validation & OCR Table</div>", unsafe_allow_html=True)
@@ -502,7 +512,7 @@ elif page == "New Expense Claim":
             st.markdown('<p class="fiori-label">Entry Date</p>', unsafe_allow_html=True)
             entry_date = st.date_input("Entry Date", datetime.today(), label_visibility="collapsed")
             
-            st.markdown('<p class="fiori-label">Petty Cash Slip / Receipt Number <span class="fiori-required">*</span> <span style="font-weight: 400; color: #666; font-size: 11px;">(e.g. 1024)</span></p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">Petty Cash Slip / Receipt Number <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
             receipt_number = st.text_input("Petty Cash Slip / Receipt Number", label_visibility="collapsed")
             
             st.markdown('<p class="fiori-label">Category <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
@@ -519,7 +529,7 @@ elif page == "New Expense Claim":
             description = st.text_area("Description / Reason", label_visibility="collapsed")
             
         st.markdown("<hr style='margin: 15px 0; border-color: #eee;'>", unsafe_allow_html=True)
-        st.markdown('<p class="fiori-label">📎 Bill / Receipt Attachments <span class="fiori-required">*</span> <span style="font-weight: 400; color: #666;">(Mandatory - Multiple Allowed)</span></p>', unsafe_allow_html=True)
+        st.markdown('<p class="fiori-label">📎 Bill / Receipt Attachments <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload receipts/bills (Images or PDFs)", 
             type=["png", "jpg", "jpeg", "pdf"], 
@@ -583,7 +593,7 @@ elif page == "New Expense Claim":
                                 if abs(num - amount) < 1.0:
                                     amount_matched = True
                                     break
-                    except Exception as e:
+                    except Exception:
                         pass
 
             if extracted_receipt_rows:
