@@ -154,10 +154,8 @@ def fetch_records():
     hotels_df = fetch_hotel_masters()
     
     if not df.empty and not hotels_df.empty:
-        # Map hotel names and regions correctly based on prism_id
         prism_col = 'prism_id' if 'prism_id' in df.columns else None
         if prism_col and 'prism_id' in hotels_df.columns:
-            # Find property name column in hotels_df
             h_name_col = 'property_name' if 'property_name' in hotels_df.columns else ('name' if 'name' in hotels_df.columns else None)
             h_reg_col = 'property_region' if 'property_region' in hotels_df.columns else ('region' if 'region' in hotels_df.columns else None)
             
@@ -183,7 +181,7 @@ st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 100px; margi
 
 components.html("""
     <div id="local-time" style="font-size: 12px; color: #73c0ff; font-weight: 600; margin-bottom: 15px; font-family: '72', Arial, sans-serif;">
-        📅 Loading local time...
+        Loading local time...
     </div>
     <script>
     function updateTime() {
@@ -197,7 +195,7 @@ components.html("""
             second: '2-digit',
             hour12: true 
         };
-        document.getElementById('local-time').innerText = '📅 ' + now.toLocaleString('en-GB', options);
+        document.getElementById('local-time').innerText = now.toLocaleString('en-GB', options);
     }
     updateTime();
     setInterval(updateTime, 1000);
@@ -237,7 +235,7 @@ if not st.session_state.authenticated:
     
     with col2:
         with st.form("login_form"):
-            st.markdown("### 🔐 Secure Sign In")
+            st.markdown("### Secure Sign In")
             user_input = st.text_input("Username")
             pass_input = st.text_input("Password", type="password")
             submit = st.form_submit_button("Login")
@@ -257,7 +255,7 @@ if not st.session_state.authenticated:
 
 user_data = st.session_state.user_info
 if user_data and not user_data.get("email"):
-    st.markdown("<div class='main-header'>🔒 PRISM Security Setup: Register Email & Update Password</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>PRISM Security Setup: Register Email & Update Password</div>", unsafe_allow_html=True)
     with st.form("setup_form"):
         st.warning(f"Welcome **{user_data['username']}**! First-time login requires setting up your official email and a strong new password.")
         new_email = st.text_input("Official Email Address:")
@@ -273,7 +271,7 @@ if user_data and not user_data.get("email"):
             else:
                 is_valid, msg = check_password_policy(new_pass)
                 if not is_valid:
-                    st.error(f"❌ Policy Error: {msg}")
+                    st.error(f"Policy Error: {msg}")
                 else:
                     supabase.table("users").update({
                         "email": new_email,
@@ -282,7 +280,7 @@ if user_data and not user_data.get("email"):
                     
                     st.session_state.user_info["email"] = new_email
                     st.session_state.user_info["password"] = new_pass
-                    st.success("✅ Profile successfully updated! Reloading...")
+                    st.success("Profile successfully updated! Reloading...")
                     st.rerun()
     st.stop()
 
@@ -290,7 +288,7 @@ assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/
 hotels_df = fetch_hotel_masters()
 
 if page == "Dashboard & Claims":
-    st.markdown("<div class='main-header'>📊 Dashboard & Claim Records</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>Dashboard & Claim Records</div>", unsafe_allow_html=True)
     df = fetch_records()
     
     if not df.empty or not hotels_df.empty:
@@ -298,10 +296,9 @@ if page == "Dashboard & Claims":
             if not df.empty and 'prism_id' in df.columns:
                 df = df[df['prism_id'] == assigned_prism]
             
-        with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
+        with st.expander("Advanced Filters & Slicer Options", expanded=True):
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
             
-            # 1. Region Filter (Strictly text-based regions, filtering out IDs)
             with col_f1:
                 regions_set = set()
                 if not hotels_df.empty:
@@ -318,7 +315,6 @@ if page == "Dashboard & Claims":
                 regions = ["All"] + sorted(list(regions_set))
                 selected_region = st.selectbox("1. Filter by Region", regions)
 
-            # 2. Property / Hotel Name Filter
             with col_f2:
                 hotel_set = set()
                 if not hotels_df.empty:
@@ -343,7 +339,6 @@ if page == "Dashboard & Claims":
                 hotel_options = ["All"] + sorted(list(hotel_set))
                 selected_property = st.selectbox("2. Hotel / Property Slicer", hotel_options)
 
-            # 3. Date Range Filter
             with col_f3:
                 if not df.empty and 'claim_date' in df.columns:
                     df['parsed_date'] = pd.to_datetime(df['claim_date'], errors='coerce')
@@ -357,7 +352,6 @@ if page == "Dashboard & Claims":
                 
                 date_range = st.date_input("3. Filter by Date Range", value=(min_dt, max_dt))
 
-            # 4. Vendor / Merchant Filter
             with col_f4:
                 merchants_set = set()
                 if not df.empty and 'merchant' in df.columns:
@@ -407,14 +401,14 @@ if page == "Dashboard & Claims":
 
         # --- Visual Graphs Section ---
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("<div class='main-header'>📈 Petty Cash Visual Analytics & Graphs</div>", unsafe_allow_html=True)
+        st.markdown("<div class='main-header'>Petty Cash Visual Analytics & Graphs</div>", unsafe_allow_html=True)
         
         if not filtered_df.empty and 'parsed_date' in filtered_df.columns:
             filtered_df['month_year'] = filtered_df['parsed_date'].dt.strftime('%Y-%m')
             g_col1, g_col2 = st.columns(2)
             
             with g_col1:
-                st.markdown("##### 📅 Month-wise Petty Cash Amount")
+                st.markdown("##### Month-wise Petty Cash Amount")
                 monthly_df = filtered_df.groupby('month_year')['amount'].sum().reset_index().sort_values('month_year')
                 if not monthly_df.empty:
                     st.bar_chart(monthly_df.set_index('month_year'))
@@ -422,14 +416,14 @@ if page == "Dashboard & Claims":
                     st.info("No timeline data available.")
 
             with g_col2:
-                st.markdown("##### 🏢 Hotel-wise Petty Cash Amount")
+                st.markdown("##### Hotel-wise Petty Cash Amount")
                 hotel_chart_df = filtered_df.groupby('property_name')['amount'].sum().reset_index()
                 if not hotel_chart_df.empty:
                     st.bar_chart(hotel_chart_df.set_index('property_name'))
                 else:
                     st.info("No data available.")
 
-            st.markdown("##### 🏷️ Vendor-wise Petty Cash Amount")
+            st.markdown("##### Vendor-wise Petty Cash Amount")
             vendor_chart_df = filtered_df.groupby('merchant')['amount'].sum().reset_index()
             if not vendor_chart_df.empty:
                 st.bar_chart(vendor_chart_df.set_index('merchant'))
@@ -440,7 +434,7 @@ if page == "Dashboard & Claims":
         
         # --- Uploaded Bills & Receipts Database Section ---
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("<div class='main-header'>📑 Uploaded Bills, Receipts & Invoices Archive</div>", unsafe_allow_html=True)
+        st.markdown("<div class='main-header'>Uploaded Bills, Receipts & Invoices Archive</div>", unsafe_allow_html=True)
         try:
             bills_res = supabase.table("petty_cash").select("id, unique_id, receipt_number, merchant, amount, claim_date, receipt_url, submitted_by, property_name").not_.is_("receipt_url", "null").execute()
             if bills_res.data:
@@ -454,7 +448,7 @@ if page == "Dashboard & Claims":
         st.info("No hotel master or petty cash records found in database.")
 
 elif page == "New Expense Claim":
-    st.markdown("<div class='main-header'>📝 Submit New Claim with Auto-Validation & OCR Table</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>Submit New Claim with Auto-Validation & OCR Table</div>", unsafe_allow_html=True)
     
     assigned_prism_id = user_data.get("assigned_prism_id", "")
     property_name = ""
@@ -464,7 +458,7 @@ elif page == "New Expense Claim":
         try:
             matched_h = hotels_df[hotels_df['prism_id'] == assigned_prism_id]
             if not matched_h.empty:
-                h_name_col = 'property_name' if 'property_name' in hotels_h_cols := matched_h.columns else ('name' if 'name' in matched_h.columns else None)
+                h_name_col = 'property_name' if 'property_name' in matched_h.columns else ('name' if 'name' in matched_h.columns else None)
                 h_short_col = 'short_name' if 'short_name' in matched_h.columns else None
                 
                 if h_name_col:
@@ -500,7 +494,7 @@ elif page == "New Expense Claim":
             description = st.text_area("Description / Reason", label_visibility="collapsed")
             
         st.markdown("<hr style='margin: 15px 0; border-color: #eee;'>", unsafe_allow_html=True)
-        st.markdown('<p class="fiori-label">📎 Bill / Receipt Attachments <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
+        st.markdown('<p class="fiori-label">Bill / Receipt Attachments <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload receipts/bills (Images or PDFs)", 
             type=["png", "jpg", "jpeg", "pdf"], 
@@ -511,16 +505,16 @@ elif page == "New Expense Claim":
         submitted = st.form_submit_button("Submit & Validate Claim")
         if submitted:
             if not uploaded_files:
-                st.error("❌ Submission Failed: At least 1 Bill / Receipt attachment is required!")
+                st.error("Submission Failed: At least 1 Bill / Receipt attachment is required!")
                 st.stop()
             if not receipt_number.strip():
-                st.error("❌ Petty Cash Slip / Receipt Number is mandatory.")
+                st.error("Petty Cash Slip / Receipt Number is mandatory.")
                 st.stop()
             if amount <= 0:
-                st.error("❌ Please enter a valid Amount.")
+                st.error("Please enter a valid Amount.")
                 st.stop()
             if not merchant.strip() or not description.strip():
-                st.error("❌ Merchant Name and Description are mandatory.")
+                st.error("Merchant Name and Description are mandatory.")
                 st.stop()
                 
             clean_rec_check = receipt_number.strip()
@@ -528,17 +522,17 @@ elif page == "New Expense Claim":
             try:
                 existing_check = supabase.table("petty_cash").select("id").eq("receipt_number", clean_rec_check).eq("prism_id", assigned_prism_id).execute()
                 if existing_check.data:
-                    st.error(f"❌ **Duplicate Error:** Receipt Number `{clean_rec_check}` has already been submitted for this property!")
+                    st.error(f"Duplicate Error: Receipt Number `{clean_rec_check}` has already been submitted for this property!")
                     st.stop()
             except Exception as db_err:
-                st.error(f"❌ Database error during duplicate check: {str(db_err)}.")
+                st.error(f"Database error during duplicate check: {str(db_err)}.")
                 st.stop()
 
             extracted_receipt_rows = []
             amount_matched = False
             
             if OCR_AVAILABLE and uploaded_files:
-                with st.spinner("🤖 Scanning receipt items & amounts via OCR..."):
+                with st.spinner("Scanning receipt items & amounts via OCR..."):
                     try:
                         reader = load_ocr_reader()
                         for f_idx, file_obj in enumerate(uploaded_files):
@@ -568,14 +562,14 @@ elif page == "New Expense Claim":
                         pass
 
             if extracted_receipt_rows:
-                st.markdown("### 📋 Auto-Generated Receipt Verification Table")
+                st.markdown("### Auto-Generated Receipt Verification Table")
                 st.dataframe(pd.DataFrame(extracted_receipt_rows), use_container_width=True)
                 
                 if not amount_matched:
-                    st.error(f"❌ **Validation Failed:** Entered amount `{amount}` does not match any numeric value found in the attached receipt scan!")
+                    st.error(f"Validation Failed: Entered amount `{amount}` does not match any numeric value found in the attached receipt scan!")
                     st.stop()
                 else:
-                    st.success("✅ **Validation Passed:** Amount verified against receipt items table.")
+                    st.success("Validation Passed: Amount verified against receipt items table.")
 
             try:
                 uploaded_urls = []
@@ -615,12 +609,12 @@ elif page == "New Expense Claim":
                     "receipt_url": ", ".join(uploaded_urls)
                 }
                 supabase.table("petty_cash").insert(new_data).execute()
-                st.success(f"✅ Claim Submitted Successfully! Unique ID: {unique_id}")
+                st.success(f"Claim Submitted Successfully! Unique ID: {unique_id}")
             except Exception as e:
-                st.error(f"❌ Error submitting claim: {str(e)}")
+                st.error(f"Error submitting claim: {str(e)}")
 
 elif page == "Approvals Workflow":
-    st.markdown("<div class='main-header'>✅ Pending Approvals</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>Pending Approvals</div>", unsafe_allow_html=True)
     if st.session_state.user_role in ["Manager", "Admin", "Super Admin", "PPM", "GM"] or st.session_state.username.lower() == "kapil":
         df = fetch_records()
         if not df.empty:
@@ -656,16 +650,16 @@ elif page == "Approvals Workflow":
         else:
             st.info("No records found.")
     else:
-        st.warning("You do not have approval permissions.")
+                st.warning("You do not have approval permissions.")
 
 elif page == "Reports & Export":
-    st.markdown("<div class='main-header'>📥 Export Reports & Uploaded Bills Archive</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>Export Reports & Uploaded Bills Archive</div>", unsafe_allow_html=True)
     df = fetch_records()
     if not df.empty:
         if not is_admin_or_kapil and assigned_prism:
             df = df[df['prism_id'] == assigned_prism]
             
-        st.markdown("### 📊 Claims Report Table")
+        st.markdown("### Claims Report Table")
         st.dataframe(df, use_container_width=True)
         
         buffer = io.BytesIO()
@@ -673,14 +667,14 @@ elif page == "Reports & Export":
             df.to_excel(writer, index=False, sheet_name='PrismPettyCashReport')
             
         st.download_button(
-            label="📊 Download Excel Report",
+            label="Download Excel Report",
             data=buffer.getvalue(),
             file_name=f"prism_petty_cash_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
             mime="application/vnd.ms-excel"
         )
         
         st.markdown("<br><hr>", unsafe_allow_html=True)
-        st.markdown("### 📑 Uploaded Bills, Receipts & Invoices Table")
+        st.markdown("### Uploaded Bills, Receipts & Invoices Table")
         try:
             bills_archive = supabase.table("petty_cash").select("unique_id, claim_date, merchant, amount, receipt_url, submitted_by, property_name").not_.is_("receipt_url", "null").execute()
             if bills_archive.data:
