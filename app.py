@@ -271,45 +271,64 @@ if page == "Dashboard & Claims":
             
         if not df.empty:
             with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
-                col_f1, col_f2, col_f3 = st.columns(3)
+                col_f1, col_f2, col_f3, col_f4 = st.columns(4)
                 
+                # 1. Region Filter from hotel_master
                 with col_f1:
-                    merchants = ["All"] + list(df['merchant'].dropna().unique())
-                    selected_merchant = st.selectbox("Filter by Vendor / Merchant", merchants)
-                    
                     regions = ["All"]
-                    if 'region' in df.columns:
-                        regions += list(df['region'].dropna().unique())
-                    selected_region = st.selectbox("Filter by Region", regions)
+                    if not hotels_df.empty and 'region' in hotels_df.columns:
+                        regions += sorted([str(r) for r in hotels_df['region'].dropna().unique()])
+                    elif 'region' in df.columns:
+                        regions += sorted([str(r) for r in df['region'].dropna().unique()])
+                    selected_region = st.selectbox("1. Filter by Region", regions)
 
+                # 2. Property / Hotel Name (with Short Name) Filter
                 with col_f2:
+                    hotel_options = ["All"]
+                    filtered_hotels_df = hotels_df.copy()
+                    if selected_region != "All" and not filtered_hotels_df.empty and 'region' in filtered_hotels_df.columns:
+                        filtered_hotels_df = filtered_hotels_df[filtered_hotels_df['region'] == selected_region]
+                    
+                    if not filtered_hotels_df.empty and 'property_name' in filtered_hotels_df.columns:
+                        for _, h_row in filtered_hotels_df.iterrows():
+                            p_name = h_row.get('property_name', '')
+                            s_name = h_row.get('short_name', '')
+                            display_str = f"{p_name} ({s_name})" if s_name else p_name
+                            if display_str not in hotel_options:
+                                hotel_options.append(display_str)
+                    else:
+                        hotel_options += list(df['property_name'].dropna().unique())
+                        
+                    selected_property = st.selectbox("2. Hotel / Property Slicer", hotel_options)
+
+                # 3. Date / Year Filter
+                with col_f3:
                     df['year'] = pd.to_datetime(df['claim_date'], errors='coerce').dt.year
                     years = ["All"] + sorted([str(int(y)) for y in df['year'].dropna().unique() if pd.notna(y)])
-                    selected_year = st.selectbox("Filter by Year", years)
+                    selected_year = st.selectbox("3. Filter by Year", years)
 
-                    if is_admin_or_kapil:
-                        hotel_names_list = ["All"]
-                        if not hotels_df.empty and 'property_name' in hotels_df.columns:
-                            hotel_names_list += list(hotels_df['property_name'].dropna().unique())
-                        else:
-                            hotel_names_list += list(df['property_name'].dropna().unique())
-                        
-                        selected_property = st.selectbox("Hotel / Property Slicer", hotel_names_list)
-
-                with col_f3:
-                    max_amt_val = float(df['amount'].max()) if not df.empty else 10000.0
-                    selected_max_amount = st.slider("Maximum Petty Cash Amount", 0.0, max_amt_val if max_amt_val > 0 else 10000.0, max_amt_val)
+                # 4. Vendor / Merchant Filter
+                with col_f4:
+                    merchants = ["All"] + sorted([str(m) for m in df['merchant'].dropna().unique()])
+                    selected_merchant = st.selectbox("4. Filter by Vendor / Merchant", merchants)
 
             filtered_df = df.copy()
-            if selected_merchant != "All":
-                filtered_df = filtered_df[filtered_df['merchant'] == selected_merchant]
-            if selected_region != "All" and 'region' in filtered_df.columns:
-                filtered_df = filtered_df[filtered_df['region'] == selected_region]
+            if selected_region != "All":
+                if not hotels_df.empty and 'region' in hotels_df.columns and 'property_name' in hotels_df.columns:
+                    matched_props = hotels_df[hotels_df['region'] == selected_region]['property_name'].tolist()
+                    filtered_df = filtered_df[filtered_df['property_name'].isin(matched_props)]
+                elif 'region' in filtered_df.columns:
+                    filtered_df = filtered_df[filtered_df['region'] == selected_region]
+                    
+            if selected_property != "All":
+                # Extract pure property name before bracket if short_name is attached
+                clean_prop_name = selected_property.split(" (")[0]
+                filtered_df = filtered_df[filtered_df['property_name'] == clean_prop_name]
+                
             if selected_year != "All":
                 filtered_df = filtered_df[filtered_df['year'].astype(str) == selected_year]
-            if is_admin_or_kapil and selected_property != "All":
-                filtered_df = filtered_df[filtered_df['property_name'] == selected_property]
-            filtered_df = filtered_df[filtered_df['amount'] <= selected_max_amount]
+            if selected_merchant != "All":
+                filtered_df = filtered_df[filtered_df['merchant'] == selected_merchant]
 
             col1, col2, col3 = st.columns(3)
             col1.metric("Total Filtered Claims", len(filtered_df))
@@ -318,6 +337,41 @@ if page == "Dashboard & Claims":
             
             st.dataframe(filtered_df, use_container_width=True)
             
+            # --- Visual Graphs Section ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div class='main-header'>📈 Petty Cash Visual Analytics & Graphs</div>", unsafe_allow_html=True)
+            
+            if not filtered_df.empty:
+                filtered_df['parsed_date'] = pd.to_datetime(filtered_df['claim_date'], errors='coerce')
+                filtered_df['month_year'] = filtered_df['parsed_date'].dt.strftime('%Y-%m')
+                
+                g_col1, g_col2 = st.columns(2)
+                
+                with g_col1:
+                    st.markdown("##### 📅 Month-wise Petty Cash Amount")
+                    monthly_df = filtered_df.groupby('month_year')['amount'].sum().reset_index().sort_values('month_year')
+                    if not monthly_df.empty:
+                        st.bar_chart(monthly_df.set_index('month_year'))
+                    else:
+                        st.info("No timeline data available for monthly chart.")
+
+                with g_col2:
+                    st.markdown("##### 🏢 Hotel-wise Petty Cash Amount")
+                    hotel_chart_df = filtered_df.groupby('property_name')['amount'].sum().reset_index()
+                    if not hotel_chart_df.empty:
+                        st.bar_chart(hotel_chart_df.set_index('property_name'))
+                    else:
+                        st.info("No data available for hotel chart.")
+
+                st.markdown("##### 🏷️ Vendor-wise Petty Cash Amount")
+                vendor_chart_df = filtered_df.groupby('merchant')['amount'].sum().reset_index()
+                if not vendor_chart_df.empty:
+                    st.bar_chart(vendor_chart_df.set_index('merchant'))
+                else:
+                    st.info("No data available for vendor chart.")
+            else:
+                st.info("No data available in current filter selection to render graphs.")
+            
             # --- Uploaded Bills & Receipts Database/Table Section ---
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("<div class='main-header'>📑 Uploaded Bills, Receipts & Invoices Archive</div>", unsafe_allow_html=True)
@@ -325,8 +379,6 @@ if page == "Dashboard & Claims":
                 bills_res = supabase.table("petty_cash").select("id, unique_id, receipt_number, merchant, amount, claim_date, receipt_url, submitted_by, property_name").not_.is_("receipt_url", "null").execute()
                 if bills_res.data:
                     bills_df = pd.DataFrame(bills_res.data)
-                    if not is_admin_or_kapil and assigned_prism:
-                        pass
                     st.dataframe(bills_df, use_container_width=True)
                 else:
                     st.info("No bills or receipts found in storage archive.")
