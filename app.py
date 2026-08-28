@@ -181,7 +181,7 @@ st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 100px; margi
 
 components.html("""
     <div id="local-time" style="font-size: 12px; color: #73c0ff; font-weight: 600; margin-bottom: 15px; font-family: '72', Arial, sans-serif;">
-        Loading local time...
+        📅 Loading local time...
     </div>
     <script>
     function updateTime() {
@@ -195,7 +195,7 @@ components.html("""
             second: '2-digit',
             hour12: true 
         };
-        document.getElementById('local-time').innerText = now.toLocaleString('en-GB', options);
+        document.getElementById('local-time').innerText = '📅 ' + now.toLocaleString('en-GB', options);
     }
     updateTime();
     setInterval(updateTime, 1000);
@@ -235,7 +235,7 @@ if not st.session_state.authenticated:
     
     with col2:
         with st.form("login_form"):
-            st.markdown("### Secure Sign In")
+            st.markdown("### 🔐 Secure Sign In")
             user_input = st.text_input("Username")
             pass_input = st.text_input("Password", type="password")
             submit = st.form_submit_button("Login")
@@ -255,7 +255,7 @@ if not st.session_state.authenticated:
 
 user_data = st.session_state.user_info
 if user_data and not user_data.get("email"):
-    st.markdown("<div class='main-header'>PRISM Security Setup: Register Email & Update Password</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>🔒 PRISM Security Setup: Register Email & Update Password</div>", unsafe_allow_html=True)
     with st.form("setup_form"):
         st.warning(f"Welcome **{user_data['username']}**! First-time login requires setting up your official email and a strong new password.")
         new_email = st.text_input("Official Email Address:")
@@ -271,7 +271,7 @@ if user_data and not user_data.get("email"):
             else:
                 is_valid, msg = check_password_policy(new_pass)
                 if not is_valid:
-                    st.error(f"Policy Error: {msg}")
+                    st.error(f"❌ Policy Error: {msg}")
                 else:
                     supabase.table("users").update({
                         "email": new_email,
@@ -280,7 +280,7 @@ if user_data and not user_data.get("email"):
                     
                     st.session_state.user_info["email"] = new_email
                     st.session_state.user_info["password"] = new_pass
-                    st.success("Profile successfully updated! Reloading...")
+                    st.success("✅ Profile successfully updated! Reloading...")
                     st.rerun()
     st.stop()
 
@@ -288,7 +288,7 @@ assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/
 hotels_df = fetch_hotel_masters()
 
 if page == "Dashboard & Claims":
-    st.markdown("<div class='main-header'>Dashboard & Claim Records</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>📊 Dashboard & Claim Records</div>", unsafe_allow_html=True)
     df = fetch_records()
     
     if not df.empty or not hotels_df.empty:
@@ -296,18 +296,25 @@ if page == "Dashboard & Claims":
             if not df.empty and 'prism_id' in df.columns:
                 df = df[df['prism_id'] == assigned_prism]
             
-        with st.expander("Advanced Filters & Slicer Options", expanded=True):
+        with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
             
             with col_f1:
                 regions_set = set()
                 if not hotels_df.empty:
-                    reg_col_target = 'property_region' if 'property_region' in hotels_df.columns else ('region' if 'region' in hotels_df.columns else None)
-                    if reg_col_target:
-                        for r in hotels_df[reg_col_target].dropna():
-                            r_str = str(r).strip()
-                            if r_str and r_str.lower() not in ["nan", "none"] and not any(char.isdigit() for char in r_str) and "_" not in r_str:
-                                regions_set.add(r_str)
+                    for col_name in hotels_df.columns:
+                        if 'reg' in col_name.lower():
+                            for r in hotels_df[col_name].dropna():
+                                r_str = str(r).strip()
+                                if r_str and r_str.lower() not in ["nan", "none"]:
+                                    regions_set.add(r_str)
+                if not regions_set and not df.empty:
+                    for col_name in df.columns:
+                        if 'reg' in col_name.lower():
+                            for r in df[col_name].dropna():
+                                r_str = str(r).strip()
+                                if r_str and r_str.lower() not in ["nan", "none"]:
+                                    regions_set.add(r_str)
                             
                 if not regions_set:
                     regions_set = {"Europe", "Global", "Default", "Asia", "North America"}
@@ -318,20 +325,20 @@ if page == "Dashboard & Claims":
             with col_f2:
                 hotel_set = set()
                 if not hotels_df.empty:
-                    name_col = 'property_name' if 'property_name' in hotels_df.columns else ('name' if 'name' in hotels_df.columns else None)
-                    short_col = 'short_name' if 'short_name' in hotels_df.columns else None
-                    
-                    for _, h_row in hotels_df.iterrows():
-                        p_name = str(h_row.get(name_col, '')) if name_col else ''
-                        s_name = str(h_row.get(short_col, '')) if short_col else ''
-                        display_str = f"{p_name} ({s_name})" if s_name and p_name and s_name.lower() != 'nan' else (p_name or s_name)
-                        if display_str and display_str.strip() != "" and display_str.lower() != "nan":
-                            hotel_set.add(display_str)
+                    for col_name in hotels_df.columns:
+                        if 'name' in col_name.lower() or 'property' in col_name.lower():
+                            for h in hotels_df[col_name].dropna():
+                                h_str = str(h).strip()
+                                if h_str and h_str.lower() not in ["nan", "none"]:
+                                    hotel_set.add(h_str)
                 
-                if not df.empty and 'property_name' in df.columns:
-                    for p in df['property_name'].dropna().unique():
-                        if str(p).strip() and str(p).lower() != "nan":
-                            hotel_set.add(str(p))
+                if not df.empty:
+                    for col_name in df.columns:
+                        if 'name' in col_name.lower() or 'property' in col_name.lower():
+                            for p in df[col_name].dropna():
+                                p_str = str(p).strip()
+                                if p_str and p_str.lower() not in ["nan", "none"]:
+                                    hotel_set.add(p_str)
                             
                 if not hotel_set:
                     hotel_set = {"All Properties Global", "Sunday Residence"}
@@ -354,8 +361,13 @@ if page == "Dashboard & Claims":
 
             with col_f4:
                 merchants_set = set()
-                if not df.empty and 'merchant' in df.columns:
-                    merchants_set.update([str(m).strip() for m in df['merchant'].dropna().unique() if str(m).strip() != "" and str(m).lower() != "nan"])
+                if not df.empty:
+                    for col_name in df.columns:
+                        if 'merchant' in col_name.lower() or 'vendor' in col_name.lower():
+                            for m in df[col_name].dropna():
+                                m_str = str(m).strip()
+                                if m_str and m_str.lower() not in ["nan", "none"]:
+                                    merchants_set.add(m_str)
                 if not merchants_set:
                     merchants_set = {"All Vendors"}
                 merchants = ["All"] + sorted(list(merchants_set))
@@ -365,15 +377,19 @@ if page == "Dashboard & Claims":
         
         if not filtered_df.empty:
             if selected_region != "All" and not hotels_df.empty:
-                reg_col_target = 'property_region' if 'property_region' in hotels_df.columns else ('region' if 'region' in hotels_df.columns else None)
-                name_col_target = 'property_name' if 'property_name' in hotels_df.columns else ('name' if 'name' in hotels_df.columns else None)
+                reg_col_target = next((c for c in hotels_df.columns if 'reg' in c.lower()), None)
+                name_col_target = next((c for c in hotels_df.columns if 'name' in c.lower() or 'property' in c.lower()), None)
                 if reg_col_target and name_col_target:
                     matched_props = hotels_df[hotels_df[reg_col_target] == selected_region][name_col_target].tolist()
-                    filtered_df = filtered_df[filtered_df['property_name'].isin(matched_props)]
+                    prop_col_in_df = next((c for c in filtered_df.columns if 'name' in c.lower() or 'property' in c.lower()), None)
+                    if prop_col_in_df:
+                        filtered_df = filtered_df[filtered_df[prop_col_in_df].isin(matched_props)]
                     
             if selected_property != "All":
                 clean_prop_name = selected_property.split(" (")[0]
-                filtered_df = filtered_df[filtered_df['property_name'] == clean_prop_name]
+                prop_col_in_df = next((c for c in filtered_df.columns if 'name' in c.lower() or 'property' in c.lower()), None)
+                if prop_col_in_df:
+                    filtered_df = filtered_df[filtered_df[prop_col_in_df] == clean_prop_name]
                 
             if isinstance(date_range, tuple) and len(date_range) == 2 and 'parsed_date' in filtered_df.columns:
                 start_d, end_d = date_range
@@ -382,8 +398,10 @@ if page == "Dashboard & Claims":
                 if end_d:
                     filtered_df = filtered_df[filtered_df['parsed_date'].dt.date <= end_d]
 
-            if selected_merchant != "All" and 'merchant' in filtered_df.columns:
-                filtered_df = filtered_df[filtered_df['merchant'] == selected_merchant]
+            if selected_merchant != "All":
+                merchant_col_in_df = next((c for c in filtered_df.columns if 'merchant' in c.lower() or 'vendor' in c.lower()), None)
+                if merchant_col_in_df:
+                    filtered_df = filtered_df[filtered_df[merchant_col_in_df] == selected_merchant]
 
         total_claims_len = len(filtered_df)
         total_amt_sum = filtered_df['amount'].sum() if not filtered_df.empty and 'amount' in filtered_df.columns else 0.0
@@ -401,14 +419,14 @@ if page == "Dashboard & Claims":
 
         # --- Visual Graphs Section ---
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("<div class='main-header'>Petty Cash Visual Analytics & Graphs</div>", unsafe_allow_html=True)
+        st.markdown("<div class='main-header'>📈 Petty Cash Visual Analytics & Graphs</div>", unsafe_allow_html=True)
         
         if not filtered_df.empty and 'parsed_date' in filtered_df.columns:
             filtered_df['month_year'] = filtered_df['parsed_date'].dt.strftime('%Y-%m')
             g_col1, g_col2 = st.columns(2)
             
             with g_col1:
-                st.markdown("##### Month-wise Petty Cash Amount")
+                st.markdown("##### 📅 Month-wise Petty Cash Amount")
                 monthly_df = filtered_df.groupby('month_year')['amount'].sum().reset_index().sort_values('month_year')
                 if not monthly_df.empty:
                     st.bar_chart(monthly_df.set_index('month_year'))
@@ -416,17 +434,19 @@ if page == "Dashboard & Claims":
                     st.info("No timeline data available.")
 
             with g_col2:
-                st.markdown("##### Hotel-wise Petty Cash Amount")
-                hotel_chart_df = filtered_df.groupby('property_name')['amount'].sum().reset_index()
+                prop_col_chart = next((c for c in filtered_df.columns if 'name' in c.lower() or 'property' in c.lower()), 'property_name')
+                st.markdown("##### 🏢 Hotel-wise Petty Cash Amount")
+                hotel_chart_df = filtered_df.groupby(prop_col_chart)['amount'].sum().reset_index()
                 if not hotel_chart_df.empty:
-                    st.bar_chart(hotel_chart_df.set_index('property_name'))
+                    st.bar_chart(hotel_chart_df.set_index(prop_col_chart))
                 else:
                     st.info("No data available.")
 
-            st.markdown("##### Vendor-wise Petty Cash Amount")
-            vendor_chart_df = filtered_df.groupby('merchant')['amount'].sum().reset_index()
+            merchant_col_chart = next((c for c in filtered_df.columns if 'merchant' in c.lower() or 'vendor' in c.lower()), 'merchant')
+            st.markdown("##### 🏷️ Vendor-wise Petty Cash Amount")
+            vendor_chart_df = filtered_df.groupby(merchant_col_chart)['amount'].sum().reset_index()
             if not vendor_chart_df.empty:
-                st.bar_chart(vendor_chart_df.set_index('merchant'))
+                st.bar_chart(vendor_chart_df.set_index(merchant_col_chart))
             else:
                 st.info("No data available.")
         else:
@@ -434,7 +454,7 @@ if page == "Dashboard & Claims":
         
         # --- Uploaded Bills & Receipts Database Section ---
         st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("<div class='main-header'>Uploaded Bills, Receipts & Invoices Archive</div>", unsafe_allow_html=True)
+        st.markdown("<div class='main-header'>📑 Uploaded Bills, Receipts & Invoices Archive</div>", unsafe_allow_html=True)
         try:
             bills_res = supabase.table("petty_cash").select("id, unique_id, receipt_number, merchant, amount, claim_date, receipt_url, submitted_by, property_name").not_.is_("receipt_url", "null").execute()
             if bills_res.data:
@@ -448,7 +468,7 @@ if page == "Dashboard & Claims":
         st.info("No hotel master or petty cash records found in database.")
 
 elif page == "New Expense Claim":
-    st.markdown("<div class='main-header'>Submit New Claim with Auto-Validation & OCR Table</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>📝 Submit New Claim with Auto-Validation & OCR Table</div>", unsafe_allow_html=True)
     
     assigned_prism_id = user_data.get("assigned_prism_id", "")
     property_name = ""
@@ -456,10 +476,11 @@ elif page == "New Expense Claim":
     
     if assigned_prism_id and not hotels_df.empty:
         try:
-            matched_h = hotels_df[hotels_df['prism_id'] == assigned_prism_id]
+            prism_id_col = next((c for c in hotels_df.columns if 'prism' in c.lower()), 'prism_id')
+            matched_h = hotels_df[hotels_df[prism_id_col] == assigned_prism_id]
             if not matched_h.empty:
-                h_name_col = 'property_name' if 'property_name' in matched_h.columns else ('name' if 'name' in matched_h.columns else None)
-                h_short_col = 'short_name' if 'short_name' in matched_h.columns else None
+                h_name_col = next((c for c in matched_h.columns if 'name' in c.lower() or 'property' in c.lower()), None)
+                h_short_col = next((c for c in matched_h.columns if 'short' in c.lower()), None)
                 
                 if h_name_col:
                     property_name = str(matched_h.iloc[0].get(h_name_col, ''))
@@ -471,30 +492,30 @@ elif page == "New Expense Claim":
     with st.form("claim_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown('<p class="fiori-label">Claim Date</p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">📅 Claim Date</p>', unsafe_allow_html=True)
             claim_date = st.date_input("Claim Date", datetime.today(), label_visibility="collapsed")
             
-            st.markdown('<p class="fiori-label">Entry Date</p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">📅 Entry Date</p>', unsafe_allow_html=True)
             entry_date = st.date_input("Entry Date", datetime.today(), label_visibility="collapsed")
             
-            st.markdown('<p class="fiori-label">Petty Cash Slip / Receipt Number <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">🧾 Petty Cash Slip / Receipt Number <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
             receipt_number = st.text_input("Petty Cash Slip / Receipt Number", label_visibility="collapsed")
             
-            st.markdown('<p class="fiori-label">Category <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">🏷️ Category <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
             category = st.selectbox("Category", ["Travel", "Office Supplies", "Maintenance", "Food & Beverage", "Utility", "Other"], label_visibility="collapsed")
             
         with col2:
-            st.markdown('<p class="fiori-label">Amount</p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">💵 Amount</p>', unsafe_allow_html=True)
             amount = st.number_input("Amount", min_value=0.0, step=10.0, format="%.2f", label_visibility="collapsed")
             
-            st.markdown('<p class="fiori-label">Merchant / Vendor Name <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">🏢 Merchant / Vendor Name <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
             merchant = st.text_input("Merchant / Vendor Name", label_visibility="collapsed")
             
-            st.markdown('<p class="fiori-label">Description / Reason <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">📄 Description / Reason <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
             description = st.text_area("Description / Reason", label_visibility="collapsed")
             
         st.markdown("<hr style='margin: 15px 0; border-color: #eee;'>", unsafe_allow_html=True)
-        st.markdown('<p class="fiori-label">Bill / Receipt Attachments <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
+        st.markdown('<p class="fiori-label">📎 Bill / Receipt Attachments <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload receipts/bills (Images or PDFs)", 
             type=["png", "jpg", "jpeg", "pdf"], 
@@ -505,16 +526,16 @@ elif page == "New Expense Claim":
         submitted = st.form_submit_button("Submit & Validate Claim")
         if submitted:
             if not uploaded_files:
-                st.error("Submission Failed: At least 1 Bill / Receipt attachment is required!")
+                st.error("❌ Submission Failed: At least 1 Bill / Receipt attachment is required!")
                 st.stop()
             if not receipt_number.strip():
-                st.error("Petty Cash Slip / Receipt Number is mandatory.")
+                st.error("❌ Petty Cash Slip / Receipt Number is mandatory.")
                 st.stop()
             if amount <= 0:
-                st.error("Please enter a valid Amount.")
+                st.error("❌ Please enter a valid Amount.")
                 st.stop()
             if not merchant.strip() or not description.strip():
-                st.error("Merchant Name and Description are mandatory.")
+                st.error("❌ Merchant Name and Description are mandatory.")
                 st.stop()
                 
             clean_rec_check = receipt_number.strip()
@@ -522,17 +543,17 @@ elif page == "New Expense Claim":
             try:
                 existing_check = supabase.table("petty_cash").select("id").eq("receipt_number", clean_rec_check).eq("prism_id", assigned_prism_id).execute()
                 if existing_check.data:
-                    st.error(f"Duplicate Error: Receipt Number `{clean_rec_check}` has already been submitted for this property!")
+                    st.error(f"❌ **Duplicate Error:** Receipt Number `{clean_rec_check}` has already been submitted for this property!")
                     st.stop()
             except Exception as db_err:
-                st.error(f"Database error during duplicate check: {str(db_err)}.")
+                st.error(f"❌ Database error during duplicate check: {str(db_err)}.")
                 st.stop()
 
             extracted_receipt_rows = []
             amount_matched = False
             
             if OCR_AVAILABLE and uploaded_files:
-                with st.spinner("Scanning receipt items & amounts via OCR..."):
+                with st.spinner("🤖 Scanning receipt items & amounts via OCR..."):
                     try:
                         reader = load_ocr_reader()
                         for f_idx, file_obj in enumerate(uploaded_files):
@@ -562,14 +583,14 @@ elif page == "New Expense Claim":
                         pass
 
             if extracted_receipt_rows:
-                st.markdown("### Auto-Generated Receipt Verification Table")
+                st.markdown("### 📋 Auto-Generated Receipt Verification Table")
                 st.dataframe(pd.DataFrame(extracted_receipt_rows), use_container_width=True)
                 
                 if not amount_matched:
-                    st.error(f"Validation Failed: Entered amount `{amount}` does not match any numeric value found in the attached receipt scan!")
+                    st.error(f"❌ **Validation Failed:** Entered amount `{amount}` does not match any numeric value found in the attached receipt scan!")
                     st.stop()
                 else:
-                    st.success("Validation Passed: Amount verified against receipt items table.")
+                    st.success("✅ **Validation Passed:** Amount verified against receipt items table.")
 
             try:
                 uploaded_urls = []
@@ -609,12 +630,12 @@ elif page == "New Expense Claim":
                     "receipt_url": ", ".join(uploaded_urls)
                 }
                 supabase.table("petty_cash").insert(new_data).execute()
-                st.success(f"Claim Submitted Successfully! Unique ID: {unique_id}")
+                st.success(f"✅ Claim Submitted Successfully! Unique ID: {unique_id}")
             except Exception as e:
-                st.error(f"Error submitting claim: {str(e)}")
+                st.error(f"❌ Error submitting claim: {str(e)}")
 
 elif page == "Approvals Workflow":
-    st.markdown("<div class='main-header'>Pending Approvals</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>✅ Pending Approvals</div>", unsafe_allow_html=True)
     if st.session_state.user_role in ["Manager", "Admin", "Super Admin", "PPM", "GM"] or st.session_state.username.lower() == "kapil":
         df = fetch_records()
         if not df.empty:
@@ -650,16 +671,16 @@ elif page == "Approvals Workflow":
         else:
             st.info("No records found.")
     else:
-                st.warning("You do not have approval permissions.")
+        st.warning("You do not have approval permissions.")
 
 elif page == "Reports & Export":
-    st.markdown("<div class='main-header'>Export Reports & Uploaded Bills Archive</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>📥 Export Reports & Uploaded Bills Archive</div>", unsafe_allow_html=True)
     df = fetch_records()
     if not df.empty:
         if not is_admin_or_kapil and assigned_prism:
             df = df[df['prism_id'] == assigned_prism]
             
-        st.markdown("### Claims Report Table")
+        st.markdown("### 📊 Claims Report Table")
         st.dataframe(df, use_container_width=True)
         
         buffer = io.BytesIO()
@@ -667,14 +688,14 @@ elif page == "Reports & Export":
             df.to_excel(writer, index=False, sheet_name='PrismPettyCashReport')
             
         st.download_button(
-            label="Download Excel Report",
+            label="📊 Download Excel Report",
             data=buffer.getvalue(),
             file_name=f"prism_petty_cash_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
             mime="application/vnd.ms-excel"
         )
         
         st.markdown("<br><hr>", unsafe_allow_html=True)
-        st.markdown("### Uploaded Bills, Receipts & Invoices Table")
+        st.markdown("### 📑 Uploaded Bills, Receipts & Invoices Table")
         try:
             bills_archive = supabase.table("petty_cash").select("unique_id, claim_date, merchant, amount, receipt_url, submitted_by, property_name").not_.is_("receipt_url", "null").execute()
             if bills_archive.data:
