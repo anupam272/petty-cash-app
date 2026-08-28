@@ -272,11 +272,11 @@ if page == "Dashboard & Claims":
             with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns(4)
                 
-                # 1. Region Filter (hotel_master or fallback to petty_cash)
+                # 1. Region Filter (using property_region from hotel_master)
                 with col_f1:
                     regions = ["All"]
-                    if not hotels_df.empty and 'region' in hotels_df.columns:
-                        regions += sorted([str(r) for r in hotels_df['region'].dropna().unique() if str(r).strip() != ""])
+                    if not hotels_df.empty and 'property_region' in hotels_df.columns:
+                        regions += sorted([str(r) for r in hotels_df['property_region'].dropna().unique() if str(r).strip() != ""])
                     if len(regions) == 1 and 'region' in df.columns:
                         regions += sorted([str(r) for r in df['region'].dropna().unique() if str(r).strip() != ""])
                     selected_region = st.selectbox("1. Filter by Region", regions)
@@ -285,8 +285,8 @@ if page == "Dashboard & Claims":
                 with col_f2:
                     hotel_options = ["All"]
                     filtered_hotels_df = hotels_df.copy()
-                    if selected_region != "All" and not filtered_hotels_df.empty and 'region' in filtered_hotels_df.columns:
-                        filtered_hotels_df = filtered_hotels_df[filtered_hotels_df['region'] == selected_region]
+                    if selected_region != "All" and not filtered_hotels_df.empty and 'property_region' in filtered_hotels_df.columns:
+                        filtered_hotels_df = filtered_hotels_df[filtered_hotels_df['property_region'] == selected_region]
                     
                     if not filtered_hotels_df.empty and 'property_name' in filtered_hotels_df.columns:
                         for _, h_row in filtered_hotels_df.iterrows():
@@ -317,8 +317,8 @@ if page == "Dashboard & Claims":
 
             filtered_df = df.copy()
             if selected_region != "All":
-                if not hotels_df.empty and 'region' in hotels_df.columns and 'property_name' in hotels_df.columns:
-                    matched_props = hotels_df[hotels_df['region'] == selected_region]['property_name'].tolist()
+                if not hotels_df.empty and 'property_region' in hotels_df.columns and 'property_name' in hotels_df.columns:
+                    matched_props = hotels_df[hotels_df['property_region'] == selected_region]['property_name'].tolist()
                     filtered_df = filtered_df[filtered_df['property_name'].isin(matched_props)]
                 elif 'region' in filtered_df.columns:
                     filtered_df = filtered_df[filtered_df['region'] == selected_region]
