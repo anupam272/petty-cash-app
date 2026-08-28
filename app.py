@@ -42,7 +42,6 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Hide Streamlit file uploader default size limit subtext */
     [data-testid="stFileUploader"] section small {
         display: none !important;
     }
@@ -95,7 +94,6 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* SAP Fiori Form Field Labels */
     .fiori-label {
         font-size: 13px !important;
         font-weight: 700 !important;
@@ -146,7 +144,8 @@ def fetch_hotel_masters():
     try:
         res = supabase.table("hotel_master").select("*").execute()
         return pd.DataFrame(res.data) if res.data else pd.DataFrame()
-    except Exception:
+    except Exception as e:
+        st.sidebar.warning(f"Note: hotel_master table issue: {e}")
         return pd.DataFrame()
 
 PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
@@ -273,13 +272,13 @@ if page == "Dashboard & Claims":
             with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns(4)
                 
-                # 1. Region Filter from hotel_master
+                # 1. Region Filter (hotel_master or fallback to petty_cash)
                 with col_f1:
                     regions = ["All"]
                     if not hotels_df.empty and 'region' in hotels_df.columns:
-                        regions += sorted([str(r) for r in hotels_df['region'].dropna().unique()])
-                    elif 'region' in df.columns:
-                        regions += sorted([str(r) for r in df['region'].dropna().unique()])
+                        regions += sorted([str(r) for r in hotels_df['region'].dropna().unique() if str(r).strip() != ""])
+                    if len(regions) == 1 and 'region' in df.columns:
+                        regions += sorted([str(r) for r in df['region'].dropna().unique() if str(r).strip() != ""])
                     selected_region = st.selectbox("1. Filter by Region", regions)
 
                 # 2. Property / Hotel Name (with Short Name) Filter
@@ -294,22 +293,26 @@ if page == "Dashboard & Claims":
                             p_name = h_row.get('property_name', '')
                             s_name = h_row.get('short_name', '')
                             display_str = f"{p_name} ({s_name})" if s_name else p_name
-                            if display_str not in hotel_options:
+                            if display_str and display_str not in hotel_options:
                                 hotel_options.append(display_str)
-                    else:
-                        hotel_options += list(df['property_name'].dropna().unique())
-                        
+                    
+                    if len(hotel_options) == 1 and 'property_name' in df.columns:
+                        sub_df = df if selected_region == "All" else df[df.get('region', '') == selected_region]
+                        for p in sorted(sub_df['property_name'].dropna().unique()):
+                            if str(p).strip() and str(p) not in hotel_options:
+                                hotel_options.append(str(p))
+                                
                     selected_property = st.selectbox("2. Hotel / Property Slicer", hotel_options)
 
                 # 3. Date / Year Filter
                 with col_f3:
                     df['year'] = pd.to_datetime(df['claim_date'], errors='coerce').dt.year
-                    years = ["All"] + sorted([str(int(y)) for y in df['year'].dropna().unique() if pd.notna(y)])
+                    years = ["All"] + sorted([str(int(y)) for y in df['year'].dropna().unique() if pd.notna(y)], reverse=True)
                     selected_year = st.selectbox("3. Filter by Year", years)
 
                 # 4. Vendor / Merchant Filter
                 with col_f4:
-                    merchants = ["All"] + sorted([str(m) for m in df['merchant'].dropna().unique()])
+                    merchants = ["All"] + sorted([str(m) for m in df['merchant'].dropna().unique() if str(m).strip() != ""])
                     selected_merchant = st.selectbox("4. Filter by Vendor / Merchant", merchants)
 
             filtered_df = df.copy()
@@ -321,7 +324,6 @@ if page == "Dashboard & Claims":
                     filtered_df = filtered_df[filtered_df['region'] == selected_region]
                     
             if selected_property != "All":
-                # Extract pure property name before bracket if short_name is attached
                 clean_prop_name = selected_property.split(" (")[0]
                 filtered_df = filtered_df[filtered_df['property_name'] == clean_prop_name]
                 
