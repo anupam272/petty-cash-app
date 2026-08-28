@@ -30,6 +30,7 @@ except Exception as e:
 
 st.set_page_config(page_title="PRISM Petty Cash Management", page_icon="🏢", layout="wide")
 
+# SAP Enterprise UI Theme Styling + Hide File Uploader 200MB Limit Text
 st.markdown("""
     <style>
     .stApp {
@@ -39,6 +40,11 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+
+    /* Hide Streamlit file uploader size limit subtext ("200MB per file • PNG, JPG, PDF") */
+    [data-testid="stFileUploader"] section small {
+        display: none !important;
+    }
 
     .main-header {
         font-size: 24px; 
@@ -80,7 +86,7 @@ st.markdown("""
         color: #ffffff !important;
     }
     div[data-testid="stForm"] label p {
-        font-size: 16px !important;
+        font-size: 15px !important;
         font-weight: bold !important;
         color: #bb0000 !important;
     }
@@ -113,7 +119,7 @@ def fetch_records():
 
 PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
 
-# --- SIDEBAR RENDERING (Always visible structure) ---
+# --- SIDEBAR RENDERING ---
 st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 5px;'>", unsafe_allow_html=True)
 
 components.html("""
@@ -310,11 +316,12 @@ elif page == "New Expense Claim":
             description = st.text_area("Description / Reason*")
             
         st.markdown("---")
-        st.markdown("<p style='font-size: 16px; font-weight: bold; color: #bb0000;'>📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size: 15px; font-weight: bold; color: #bb0000;'>📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)</p>", unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload receipts/bills (Images or PDFs)", 
             type=["png", "jpg", "jpeg", "pdf"], 
-            accept_multiple_files=True
+            accept_multiple_files=True,
+            label_visibility="collapsed"
         )
         
         submitted = st.form_submit_button("Submit & Validate Claim")
