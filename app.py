@@ -22,9 +22,12 @@ except Exception as e:
 # 2. App Page Config
 st.set_page_config(page_title="PRISM Petty Cash Management", page_icon="🏢", layout="wide")
 
-# Custom Styling
+# Custom Styling + Streamlit Branding Removal (Header, Footer, Menu)
 st.markdown("""
     <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
     .main-header {font-size: 26px; font-weight: bold; color: #111111; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;}
     .stButton>button {width: 100%; border-radius: 6px; font-weight: 600; background-color: #111111; color: white;}
     .stButton>button:hover {background-color: #333333; color: white;}
@@ -62,7 +65,6 @@ def fetch_records():
 if not st.session_state.authenticated:
     col_logo, col_title = st.columns([2, 6])
     with col_logo:
-        # Pulls the official PRISM wordmark logo directly from prismlife.com website asset
         st.markdown("<img src='https://www.prismlife.com/wp-content/uploads/2023/10/PRISM-Logo.svg' style='max-width: 140px; margin-top: 10px;'>", unsafe_allow_html=True)
     with col_title:
         st.markdown("<h3 style='margin: 0; color: #111;'>Petty Cash Management Portal</h3>", unsafe_allow_html=True)
