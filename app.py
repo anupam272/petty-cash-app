@@ -142,6 +142,13 @@ def fetch_records():
     res = supabase.table("petty_cash").select("*").order("id", desc=True).execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
+def fetch_hotel_masters():
+    try:
+        res = supabase.table("hotel_master").select("*").execute()
+        return pd.DataFrame(res.data) if res.data else pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
+
 PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
 
 st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 100px; margin-bottom: 10px; background: white; padding: 5px; border-radius: 4px;'>", unsafe_allow_html=True)
@@ -252,6 +259,7 @@ if user_data and not user_data.get("email"):
     st.stop()
 
 assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
+hotels_df = fetch_hotel_masters()
 
 if page == "Dashboard & Claims":
     st.markdown("<div class='main-header'>📊 Dashboard & Claim Records</div>", unsafe_allow_html=True)
@@ -262,7 +270,7 @@ if page == "Dashboard & Claims":
             df = df[df['prism_id'] == assigned_prism]
             
         if not df.empty:
-            with st.expander("🔍 Advanced Filters & Search Options", expanded=True):
+            with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
                 col_f1, col_f2, col_f3 = st.columns(3)
                 
                 with col_f1:
@@ -280,8 +288,13 @@ if page == "Dashboard & Claims":
                     selected_year = st.selectbox("Filter by Year", years)
 
                     if is_admin_or_kapil:
-                        properties = ["All"] + list(df['property_name'].dropna().unique())
-                        selected_property = st.selectbox("Filter by Property / Hotel", properties)
+                        hotel_names_list = ["All"]
+                        if not hotels_df.empty and 'property_name' in hotels_df.columns:
+                            hotel_names_list += list(hotels_df['property_name'].dropna().unique())
+                        else:
+                            hotel_names_list += list(df['property_name'].dropna().unique())
+                        
+                        selected_property = st.selectbox("Hotel / Property Slicer", hotel_names_list)
 
                 with col_f3:
                     max_amt_val = float(df['amount'].max()) if not df.empty else 10000.0
@@ -309,11 +322,10 @@ if page == "Dashboard & Claims":
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("<div class='main-header'>📑 Uploaded Bills, Receipts & Invoices Archive</div>", unsafe_allow_html=True)
             try:
-                bills_res = supabase.table("petty_cash").select("id, unique_id, receipt_number, merchant, amount, claim_date, receipt_url, submitted_by").not_.is_("receipt_url", "null").execute()
+                bills_res = supabase.table("petty_cash").select("id, unique_id, receipt_number, merchant, amount, claim_date, receipt_url, submitted_by, property_name").not_.is_("receipt_url", "null").execute()
                 if bills_res.data:
                     bills_df = pd.DataFrame(bills_res.data)
                     if not is_admin_or_kapil and assigned_prism:
-                        # Filter by prism_id if linked
                         pass
                     st.dataframe(bills_df, use_container_width=True)
                 else:
@@ -550,7 +562,7 @@ elif page == "Reports & Export":
         st.markdown("<br><hr>", unsafe_allow_html=True)
         st.markdown("### 📑 Uploaded Bills, Receipts & Invoices Table")
         try:
-            bills_archive = supabase.table("petty_cash").select("unique_id, claim_date, merchant, amount, receipt_url, submitted_by").not_.is_("receipt_url", "null").execute()
+            bills_archive = supabase.table("petty_cash").select("unique_id, claim_date, merchant, amount, receipt_url, submitted_by, property_name").not_.is_("receipt_url", "null").execute()
             if bills_archive.data:
                 b_df = pd.DataFrame(bills_archive.data)
                 st.dataframe(b_df, use_container_width=True)
