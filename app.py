@@ -136,16 +136,36 @@ def check_password_policy(password):
         return False, "At least 1 Special character (@, #, $) is required."
     return True, "Valid"
 
-def fetch_records():
-    res = supabase.table("petty_cash").select("*").order("id", desc=True).execute()
-    return pd.DataFrame(res.data) if res.data else pd.DataFrame()
-
 def fetch_hotel_masters():
     try:
         res = supabase.table("hotel_master").select("*").execute()
         return pd.DataFrame(res.data) if res.data else pd.DataFrame()
-    except Exception as e:
+    except Exception:
         return pd.DataFrame()
+
+def fetch_records():
+    res = supabase.table("petty_cash").select("*").order("id", desc=True).execute()
+    df = pd.DataFrame(res.data) if res.data else pd.DataFrame()
+    
+    if not df.empty:
+        hotels_df = fetch_hotel_masters()
+        if not hotels_df.empty:
+            # Map property_name and property_region using prism_id if hotel_master has prism_id, or match by index/name if needed
+            if 'prism_id' in hotels_df.columns and 'prism_id' in df.columns:
+                hotel_map = hotels_df.set_index('prism_id')['property_name'].to_dict()
+                region_map = hotels_df.set_index('prism_id')['property_region'].to_dict()
+                
+                # Fill missing or empty property_names from hotel_master map
+                if 'property_name' in df.columns:
+                    df['property_name'] = df['property_name'].apply(lambda x: x if (pd.notna(x) and str(x).strip() != "") else None)
+                    df['property_name'] = df['property_name'].fillna(df['prism_id'].map(hotel_map))
+                
+                if 'property_region' in df.columns:
+                    df['property_region'] = df['property_region'].fillna(df['prism_id'].map(region_map))
+                else:
+                    df['property_region'] = df['prism_id'].map(region_map)
+                    
+    return df
 
 PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
 
