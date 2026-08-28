@@ -352,7 +352,7 @@ elif page == "New Expense Claim":
             description = st.text_area("Description / Reason", label_visibility="collapsed")
             
         st.markdown("<hr style='margin: 15px 0; border-color: #eee;'>", unsafe_allow_html=True)
-        st.markdown("<p class='fiori-label'>📎 Bill / Receipt Attachments <span class="fiori-required">*</span> <span style='font-weight: 400; color: #666;'>(Mandatory - Multiple Allowed)</span></p>", unsafe_allow_html=True)
+        st.markdown('<p class="fiori-label">📎 Bill / Receipt Attachments <span class="fiori-required">*</span> <span style="font-weight: 400; color: #666;">(Mandatory - Multiple Allowed)</span></p>', unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload receipts/bills (Images or PDFs)", 
             type=["png", "jpg", "jpeg", "pdf"], 
