@@ -61,7 +61,7 @@ def fetch_records():
     res = supabase.table("petty_cash").select("*").order("id", desc=True).execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
-# Official PRISM Logo URL provided by you
+# Official PRISM Logo URL
 PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
 
 # 4. Authentication Logic
@@ -171,12 +171,15 @@ elif page == "New Expense Claim":
         currency = "EUR"
     
     if assigned_prism_id:
-        h_res = supabase.table("hotel_master").select("property_name", "currency").eq("prism_id", assigned_prism_id).execute()
-        if h_res.data:
-            hotel_name = h_res.data[0].get("property_name", "")
-            db_currency = h_res.data[0].get("currency", "")
-            if db_currency:
-                currency = db_currency
+        try:
+            h_res = supabase.table("hotel_master").select("property_name", "currency").eq("prism_id", assigned_prism_id).execute()
+            if h_res.data:
+                hotel_name = h_res.data[0].get("property_name", "")
+                db_currency = h_res.data[0].get("currency", "")
+                if db_currency:
+                    currency = db_currency
+        except Exception:
+            pass
 
     with st.form("claim_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
