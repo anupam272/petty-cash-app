@@ -4,9 +4,15 @@ import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime, date
 from supabase import create_client, Client
-json
+import json
 import re
 import io
+
+try:
+    from geopy.geocoders import Nominatim
+    GEOPY_AVAILABLE = True
+except ImportError:
+    GEOPY_AVAILABLE = False
 
 try:
     import easyocr
@@ -376,13 +382,20 @@ if page == "Dashboard & Claims":
             
             st.dataframe(filtered_df, use_container_width=True)
             
-            # --- Map Section Integration ---
+            # --- Map Section Integration with Internet Geocoding ---
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("<div class='main-header'>🗺️ Property Location Map Overview</div>", unsafe_allow_html=True)
             
-            # Default coordinates lookup (e.g. Liverpool default or center coordinates)
             map_lat, map_lon, map_zoom = 53.4084, -2.9916, 11 # Default Liverpool coordinates
             
+            query_location_name = "Liverpool"
+            if selected_property != "All":
+                query_location_name = selected_property.split(" (")[0]
+            elif selected_region != "All":
+                query_location_name = selected_region
+                
+            # Try fetching from database first if available
+            coord_found = False
             if selected_property != "All" and not hotels_df.empty:
                 clean_p_name = selected_property.split(" (")[0]
                 matched_row = hotels_df[hotels_df['property_name'].str.contains(clean_p_name, case=False, na=False)]
@@ -392,8 +405,20 @@ if page == "Dashboard & Claims":
                     if pd.notna(lat_val) and pd.notna(lon_val):
                         map_lat, map_lon = float(lat_val), float(lon_val)
                         map_zoom = 13
-            
-            # Create a dataframe for st.map
+                        coord_found = True
+
+            # If not in database, fetch live from internet using geopy
+            if not coord_found and GEOPY_AVAILABLE:
+                try:
+                    geolocator = Nominatim(user_agent="prism_petty_cash_app")
+                    location_obj = geolocator.geocode(query_location_name)
+                    if location_obj:
+                        map_lat = location_obj.latitude
+                        map_lon = location_obj.longitude
+                        map_zoom = 12
+                except Exception:
+                    pass
+
             map_data = pd.DataFrame({
                 'lat': [map_lat],
                 'lon': [map_lon]
