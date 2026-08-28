@@ -1,9 +1,10 @@
+import streamlit as str_app
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 from supabase import create_client, Client
-import json
+json
 import re
 import io
 
@@ -150,12 +151,10 @@ def fetch_records():
     if not df.empty:
         hotels_df = fetch_hotel_masters()
         if not hotels_df.empty:
-            # Map property_name and property_region using prism_id if hotel_master has prism_id, or match by index/name if needed
             if 'prism_id' in hotels_df.columns and 'prism_id' in df.columns:
                 hotel_map = hotels_df.set_index('prism_id')['property_name'].to_dict()
                 region_map = hotels_df.set_index('prism_id')['property_region'].to_dict()
                 
-                # Fill missing or empty property_names from hotel_master map
                 if 'property_name' in df.columns:
                     df['property_name'] = df['property_name'].apply(lambda x: x if (pd.notna(x) and str(x).strip() != "") else None)
                     df['property_name'] = df['property_name'].fillna(df['prism_id'].map(hotel_map))
@@ -291,24 +290,22 @@ if page == "Dashboard & Claims":
             with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns(4)
                 
-                # 1. Region Filter
+                # 1. Region Filter with "All" explicitly on top
                 with col_f1:
-                    regions = ["All"]
+                    regions_set = set()
                     if not hotels_df.empty and 'property_region' in hotels_df.columns:
-                        regions += sorted([str(r) for r in hotels_df['property_region'].dropna().unique() if str(r).strip() != ""])
-                    if len(regions) == 1 and not df.empty:
+                        regions_set.update([str(r) for r in hotels_df['property_region'].dropna().unique() if str(r).strip() != ""])
+                    if not df.empty:
                         for col_name in ['property_region', 'region']:
                             if col_name in df.columns:
-                                regions += sorted([str(r) for r in df[col_name].dropna().unique() if str(r).strip() != ""])
-                    regions = sorted(list(set(regions)))
-                    if "All" in regions:
-                        regions.remove("All")
-                        regions = ["All"] + regions
+                                regions_set.update([str(r) for r in df[col_name].dropna().unique() if str(r).strip() != ""])
+                    
+                    regions = ["All"] + sorted(list(regions_set))
                     selected_region = st.selectbox("1. Filter by Region", regions)
 
-                # 2. Property / Hotel Name Filter
+                # 2. Property / Hotel Name Filter with "All" explicitly on top
                 with col_f2:
-                    hotel_options = ["All"]
+                    hotel_set = set()
                     filtered_hotels_df = hotels_df.copy()
                     if selected_region != "All" and not filtered_hotels_df.empty and 'property_region' in filtered_hotels_df.columns:
                         filtered_hotels_df = filtered_hotels_df[filtered_hotels_df['property_region'] == selected_region]
@@ -318,35 +315,33 @@ if page == "Dashboard & Claims":
                             p_name = h_row.get('property_name', '')
                             s_name = h_row.get('short_name', '')
                             display_str = f"{p_name} ({s_name})" if s_name else p_name
-                            if display_str and display_str not in hotel_options:
-                                hotel_options.append(display_str)
+                            if display_str and str(display_str).strip() != "":
+                                hotel_set.add(display_str)
                     
-                    if len(hotel_options) == 1 and not df.empty and 'property_name' in df.columns:
-                        for p in sorted(df['property_name'].dropna().unique()):
-                            if str(p).strip() and str(p) not in hotel_options:
-                                hotel_options.append(str(p))
+                    if len(hotel_set) == 0 and not df.empty and 'property_name' in df.columns:
+                        for p in df['property_name'].dropna().unique():
+                            if str(p).strip():
+                                hotel_set.add(str(p))
                                 
-                    hotel_options = sorted(list(set(hotel_options)))
-                    if "All" in hotel_options:
-                        hotel_options.remove("All")
-                        hotel_options = ["All"] + hotel_options
+                    hotel_options = ["All"] + sorted(list(hotel_set))
                     selected_property = st.selectbox("2. Hotel / Property Slicer", hotel_options)
 
-                # 3. Date / Year Filter
+                # 3. Date Range Filter (From Date & To Date)
                 with col_f3:
-                    df['year'] = pd.to_datetime(df['claim_date'], errors='coerce').dt.year
-                    years = ["All"] + sorted([str(int(y)) for y in df['year'].dropna().unique() if pd.notna(y)], reverse=True)
-                    selected_year = st.selectbox("3. Filter by Year", years)
+                    df['parsed_date'] = pd.to_datetime(df['claim_date'], errors='coerce')
+                    min_dt = df['parsed_date'].min() if not df['parsed_date'].isna().all() else date(2026, 1, 1)
+                    max_dt = df['parsed_date'].max() if not df['parsed_date'].isna().all() else date(2026, 12, 31)
+                    if pd.isna(min_dt): min_dt = date(2026, 1, 1)
+                    if pd.isna(max_dt): max_dt = date(2026, 12, 31)
+                    
+                    date_range = st.date_input("3. Filter by Date Range", value=(min_dt, max_dt))
 
-                # 4. Vendor / Merchant Filter
+                # 4. Vendor / Merchant Filter with "All" explicitly on top
                 with col_f4:
-                    merchants = ["All"]
+                    merchants_set = set()
                     if not df.empty and 'merchant' in df.columns:
-                        merchants += sorted([str(m) for m in df['merchant'].dropna().unique() if str(m).strip() != ""])
-                    merchants = sorted(list(set(merchants)))
-                    if "All" in merchants:
-                        merchants.remove("All")
-                        merchants = ["All"] + merchants
+                        merchants_set.update([str(m) for m in df['merchant'].dropna().unique() if str(m).strip() != ""])
+                    merchants = ["All"] + sorted(list(merchants_set))
                     selected_merchant = st.selectbox("4. Filter by Vendor / Merchant", merchants)
 
             filtered_df = df.copy()
@@ -363,8 +358,14 @@ if page == "Dashboard & Claims":
                 clean_prop_name = selected_property.split(" (")[0]
                 filtered_df = filtered_df[filtered_df['property_name'] == clean_prop_name]
                 
-            if selected_year != "All":
-                filtered_df = filtered_df[filtered_df['year'].astype(str) == selected_year]
+            # Date Range Filtering Logic
+            if isinstance(date_range, tuple) and len(date_range) == 2:
+                start_d, end_d = date_range
+                if start_d:
+                    filtered_df = filtered_df[filtered_df['parsed_date'].dt.date >= start_d]
+                if end_d:
+                    filtered_df = filtered_df[filtered_df['parsed_date'].dt.date <= end_d]
+
             if selected_merchant != "All":
                 filtered_df = filtered_df[filtered_df['merchant'] == selected_merchant]
 
@@ -375,12 +376,35 @@ if page == "Dashboard & Claims":
             
             st.dataframe(filtered_df, use_container_width=True)
             
+            # --- Map Section Integration ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div class='main-header'>🗺️ Property Location Map Overview</div>", unsafe_allow_html=True)
+            
+            # Default coordinates lookup (e.g. Liverpool default or center coordinates)
+            map_lat, map_lon, map_zoom = 53.4084, -2.9916, 11 # Default Liverpool coordinates
+            
+            if selected_property != "All" and not hotels_df.empty:
+                clean_p_name = selected_property.split(" (")[0]
+                matched_row = hotels_df[hotels_df['property_name'].str.contains(clean_p_name, case=False, na=False)]
+                if not matched_row.empty and 'latitude' in matched_row.columns and 'longitude' in matched_row.columns:
+                    lat_val = matched_row.iloc[0].get('latitude')
+                    lon_val = matched_row.iloc[0].get('longitude')
+                    if pd.notna(lat_val) and pd.notna(lon_val):
+                        map_lat, map_lon = float(lat_val), float(lon_val)
+                        map_zoom = 13
+            
+            # Create a dataframe for st.map
+            map_data = pd.DataFrame({
+                'lat': [map_lat],
+                'lon': [map_lon]
+            })
+            st.map(map_data, zoom=map_zoom, use_container_width=True)
+
             # --- Visual Graphs Section ---
             st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("<div class='main-header'>📈 Petty Cash Visual Analytics & Graphs</div>", unsafe_allow_html=True)
             
             if not filtered_df.empty:
-                filtered_df['parsed_date'] = pd.to_datetime(filtered_df['claim_date'], errors='coerce')
                 filtered_df['month_year'] = filtered_df['parsed_date'].dt.strftime('%Y-%m')
                 
                 g_col1, g_col2 = st.columns(2)
