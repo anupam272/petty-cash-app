@@ -139,9 +139,11 @@ def check_password_policy(password):
 
 def fetch_hotel_masters():
     try:
-        res = supabase.table("hotel_master").select("*").execute()
-        return pd.DataFrame(res.data) if res.data else pd.DataFrame()
-    except Exception:
+        res = supabase.table("hotel_master").select("prism_id, property_region, property_name").execute()
+        if res.data:
+            return pd.DataFrame(res.data)
+        return pd.DataFrame()
+    except Exception as e:
         return pd.DataFrame()
 
 def fetch_records():
@@ -299,13 +301,16 @@ if page == "Dashboard & Claims":
                 if not hotels_df.empty and 'property_region' in hotels_df.columns:
                     for r in hotels_df['property_region'].dropna():
                         r_str = str(r).strip()
-                        if r_str and r_str.lower() not in ["nan", "none", "null", "all"]:
+                        if r_str and r_str.lower() not in ["nan", "none", "null", "all", ""]:
                             regions_set.add(r_str)
                 if not df.empty and 'property_region' in df.columns:
                     for r in df['property_region'].dropna():
                         r_str = str(r).strip()
-                        if r_str and r_str.lower() not in ["nan", "none", "null", "all"]:
+                        if r_str and r_str.lower() not in ["nan", "none", "null", "all", ""]:
                             regions_set.add(r_str)
+                
+                if not regions_set:
+                    regions_set = {"Europe"}
                     
                 regions = ["All"] + sorted(list(regions_set))
                 selected_region = st.selectbox("1. Filter by Region", regions)
@@ -315,13 +320,13 @@ if page == "Dashboard & Claims":
                 if not hotels_df.empty and 'property_name' in hotels_df.columns:
                     for h in hotels_df['property_name'].dropna():
                         h_str = str(h).strip()
-                        if h_str and h_str.lower() not in ["nan", "none", "null", "all properties global"]:
+                        if h_str and h_str.lower() not in ["nan", "none", "null", "all properties global", ""]:
                             hotel_set.add(h_str)
                 
                 if not df.empty and 'property_name' in df.columns:
                     for p in df['property_name'].dropna():
                         p_str = str(p).strip()
-                        if p_str and p_str.lower() not in ["nan", "none", "null"]:
+                        if p_str and p_str.lower() not in ["nan", "none", "null", ""]:
                             hotel_set.add(p_str)
                             
                 hotel_options = ["All"] + sorted(list(hotel_set))
@@ -347,7 +352,7 @@ if page == "Dashboard & Claims":
                         if 'merchant' in col_name.lower() or 'vendor' in col_name.lower():
                             for m in df[col_name].dropna():
                                 m_str = str(m).strip()
-                                if m_str and m_str.lower() not in ["nan", "none"]:
+                                if m_str and m_str.lower() not in ["nan", "none", ""]:
                                     merchants_set.add(m_str)
                 merchants = ["All"] + sorted(list(merchants_set))
                 selected_merchant = st.selectbox("4. Filter by Vendor / Merchant", merchants)
@@ -391,7 +396,6 @@ if page == "Dashboard & Claims":
         else:
             st.info("No claims match the selected filter criteria.")
 
-        # --- Visual Graphs Section ---
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("<div class='main-header'>📈 Petty Cash Visual Analytics & Graphs</div>", unsafe_allow_html=True)
         
@@ -426,7 +430,6 @@ if page == "Dashboard & Claims":
         else:
             st.info("No data available to render graphs.")
         
-        # --- Uploaded Bills & Receipts Database Section ---
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("<div class='main-header'>📑 Uploaded Bills, Receipts & Invoices Archive</div>", unsafe_allow_html=True)
         try:
