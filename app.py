@@ -159,7 +159,7 @@ if page == "Dashboard & Claims":
         st.info("No petty cash claims found.")
 
 elif page == "New Expense Claim":
-    st.markdown("<div class='main-header'>📝 Submit New Petty Cash Claim with Auto-Receipt Validation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>📝 Submit New Claim with Duplicate & OCR Validation</div>", unsafe_allow_html=True)
     
     assigned_prism_id = user_data.get("assigned_prism_id", "")
     assigned_region = user_data.get("assigned_region", "")
@@ -213,11 +213,21 @@ elif page == "New Expense Claim":
                 st.error("❌ Vendor Name and Receipt No. are mandatory.")
                 st.stop()
                 
+            # 1. DUPLICATE RECEIPT CHECK IN DATABASE
+            try:
+                dup_check = supabase.table("petty_cash").select("id, receipt_no, vendor_name").eq("oyo_id", assigned_prism_id).eq("receipt_no", receipt_no.strip()).execute()
+                if dup_check.data:
+                    st.error(f"❌ **Duplicate Blocked:** Receipt Number `{receipt_no}` has already been submitted for this property! You cannot reuse the same invoice/receipt.")
+                    st.stop()
+            except Exception as d_err:
+                pass
+
             extracted_receipt_rows = []
             amount_matched = False
             
+            # 2. OCR VERIFICATION & ITEMIZATION TABLE
             if OCR_AVAILABLE and uploaded_files:
-                with st.spinner("🤖 Scanning receipt items, amounts & descriptions via OCR..."):
+                with st.spinner("🤖 Scanning receipt items & amounts via OCR..."):
                     try:
                         reader = load_ocr_reader()
                         for f_idx, file_obj in enumerate(uploaded_files):
@@ -227,44 +237,42 @@ elif page == "New Expense Claim":
                             ocr_results = reader.readtext(file_bytes, detail=0)
                             full_text_str = " ".join(ocr_results)
                             
-                            # Simple numeric regex to discover prices/amounts in receipt
                             found_numbers = re.findall(r'\d+(?:\.\d{1,2})?', full_text_str)
                             clean_numbers = [float(n) for n in found_numbers if float(n) > 0]
-                            
                             max_detected_amt = max(clean_numbers) if clean_numbers else 0.0
                             
                             extracted_receipt_rows.append({
                                 "Receipt Index": f_idx + 1,
                                 "File Name": file_obj.name,
-                                "Detected Vendor Text": vendor_name,
-                                "Max Detected Amount": max_detected_amt,
-                                "Full Extracted Text snippet": full_text_str[:120] + "..."
+                                "Vendor": vendor_name,
+                                "Max Amount Found": max_detected_amt,
+                                "Extracted Snippet": full_text_str[:100] + "..."
                             })
                             
-                            # Validation matching condition (allowing entered amount to match any detected amount in receipt)
                             for num in clean_numbers:
-                                if abs(num - invoice_amount) < 1.0: # within 1 unit tolerance
+                                if abs(num - invoice_amount) < 1.0:
                                     amount_matched = True
                                     break
                     except Exception as e:
-                        st.warning(f"OCR Parsing warning: {str(e)}")
+                        pass
 
-            # Display generated receipt verification table if available
             if extracted_receipt_rows:
-                st.markdown("### 📋 Auto-Generated Receipt Itemization / Validation Table")
+                st.markdown("### 📋 Auto-Generated Receipt Verification Table")
                 st.dataframe(pd.DataFrame(extracted_receipt_rows), use_container_width=True)
                 
                 if not amount_matched:
-                    st.error(f"❌ **Validation Failed:** Entered amount `{invoice_amount}` does not match any numeric value extracted from the uploaded receipt scan! Please check your bill or amount.")
+                    st.error(f"❌ **Validation Failed:** Entered amount `{invoice_amount}` does not match any numeric value found in the attached receipt scan!")
                     st.stop()
                 else:
-                    st.success("✅ **Validation Passed:** Amount verified against uploaded receipt items table.")
+                    st.success("✅ **Validation Passed:** Amount verified against receipt items table.")
 
+            # 3. UPLOAD & SAVE CLAIM
             try:
                 uploaded_urls = []
                 for idx, file_obj in enumerate(uploaded_files):
                     file_ext = file_obj.name.split(".")[-1]
-                    file_name = f"{assigned_prism_id}_{claim_date}_{receipt_no}_{idx+1}.{file_ext}"
+                    unique_suffix = int(datetime.now().timestamp() * 1000)
+                    file_name = f"{assigned_prism_id}_{claim_date}_{receipt_no}_{idx+1}_{unique_suffix}.{file_ext}"
                     file_bytes = file_obj.read()
                     storage_path = f"receipts/{file_name}"
                     
