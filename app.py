@@ -210,7 +210,6 @@ elif page == "New Expense Claim":
     property_name = ""
     property_short_name = "prop"
     
-    currency_label = ""
     if assigned_prism_id:
         try:
             h_res = supabase.table("hotel_master").select("*").eq("prism_id", assigned_prism_id).execute()
@@ -257,10 +256,15 @@ elif page == "New Expense Claim":
                 st.stop()
                 
             clean_inv_check = invoice_number.strip()
-            existing_check = supabase.table("petty_cash").select("id").eq("invoice_number", clean_inv_check).eq("prism_id", assigned_prism_id).execute()
-            if existing_check.data:
-                st.error(f"❌ **Duplicate Error:** Invoice Number `{clean_inv_check}` has already been submitted for this property!")
-                st.stop()
+            
+            # Safe Duplicate Check with Error Handling
+            try:
+                existing_check = supabase.table("petty_cash").select("id").eq("invoice_number", clean_inv_check).eq("prism_id", assigned_prism_id).execute()
+                if existing_check.data:
+                    st.error(f"❌ **Duplicate Error:** Invoice Number `{clean_inv_check}` has already been submitted for this property!")
+                    st.stop()
+            except Exception as db_err:
+                st.warning(f"⚠️ Note on duplicate check: {str(db_err)}. Proceeding with submission...")
 
             extracted_receipt_rows = []
             amount_matched = False
