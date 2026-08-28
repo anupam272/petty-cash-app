@@ -145,7 +145,6 @@ def fetch_hotel_masters():
         res = supabase.table("hotel_master").select("*").execute()
         return pd.DataFrame(res.data) if res.data else pd.DataFrame()
     except Exception as e:
-        st.sidebar.warning(f"Note: hotel_master table issue: {e}")
         return pd.DataFrame()
 
 PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
@@ -272,16 +271,22 @@ if page == "Dashboard & Claims":
             with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
                 col_f1, col_f2, col_f3, col_f4 = st.columns(4)
                 
-                # 1. Region Filter (using property_region from hotel_master)
+                # 1. Region Filter
                 with col_f1:
                     regions = ["All"]
                     if not hotels_df.empty and 'property_region' in hotels_df.columns:
                         regions += sorted([str(r) for r in hotels_df['property_region'].dropna().unique() if str(r).strip() != ""])
-                    if len(regions) == 1 and 'region' in df.columns:
-                        regions += sorted([str(r) for r in df['region'].dropna().unique() if str(r).strip() != ""])
+                    if len(regions) == 1 and not df.empty:
+                        for col_name in ['property_region', 'region']:
+                            if col_name in df.columns:
+                                regions += sorted([str(r) for r in df[col_name].dropna().unique() if str(r).strip() != ""])
+                    regions = sorted(list(set(regions)))
+                    if "All" in regions:
+                        regions.remove("All")
+                        regions = ["All"] + regions
                     selected_region = st.selectbox("1. Filter by Region", regions)
 
-                # 2. Property / Hotel Name (with Short Name) Filter
+                # 2. Property / Hotel Name Filter
                 with col_f2:
                     hotel_options = ["All"]
                     filtered_hotels_df = hotels_df.copy()
@@ -296,12 +301,15 @@ if page == "Dashboard & Claims":
                             if display_str and display_str not in hotel_options:
                                 hotel_options.append(display_str)
                     
-                    if len(hotel_options) == 1 and 'property_name' in df.columns:
-                        sub_df = df if selected_region == "All" else df[df.get('region', '') == selected_region]
-                        for p in sorted(sub_df['property_name'].dropna().unique()):
+                    if len(hotel_options) == 1 and not df.empty and 'property_name' in df.columns:
+                        for p in sorted(df['property_name'].dropna().unique()):
                             if str(p).strip() and str(p) not in hotel_options:
                                 hotel_options.append(str(p))
                                 
+                    hotel_options = sorted(list(set(hotel_options)))
+                    if "All" in hotel_options:
+                        hotel_options.remove("All")
+                        hotel_options = ["All"] + hotel_options
                     selected_property = st.selectbox("2. Hotel / Property Slicer", hotel_options)
 
                 # 3. Date / Year Filter
@@ -312,7 +320,13 @@ if page == "Dashboard & Claims":
 
                 # 4. Vendor / Merchant Filter
                 with col_f4:
-                    merchants = ["All"] + sorted([str(m) for m in df['merchant'].dropna().unique() if str(m).strip() != ""])
+                    merchants = ["All"]
+                    if not df.empty and 'merchant' in df.columns:
+                        merchants += sorted([str(m) for m in df['merchant'].dropna().unique() if str(m).strip() != ""])
+                    merchants = sorted(list(set(merchants)))
+                    if "All" in merchants:
+                        merchants.remove("All")
+                        merchants = ["All"] + merchants
                     selected_merchant = st.selectbox("4. Filter by Vendor / Merchant", merchants)
 
             filtered_df = df.copy()
@@ -320,6 +334,8 @@ if page == "Dashboard & Claims":
                 if not hotels_df.empty and 'property_region' in hotels_df.columns and 'property_name' in hotels_df.columns:
                     matched_props = hotels_df[hotels_df['property_region'] == selected_region]['property_name'].tolist()
                     filtered_df = filtered_df[filtered_df['property_name'].isin(matched_props)]
+                elif 'property_region' in filtered_df.columns:
+                    filtered_df = filtered_df[filtered_df['property_region'] == selected_region]
                 elif 'region' in filtered_df.columns:
                     filtered_df = filtered_df[filtered_df['region'] == selected_region]
                     
