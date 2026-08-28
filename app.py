@@ -225,7 +225,7 @@ elif page == "New Expense Claim":
         with col1:
             claim_date = st.date_input("Claim Date", datetime.today())
             entry_date = st.date_input("Entry Date", datetime.today())
-            invoice_number = st.text_input("Invoice Number* (e.g. 1024)")
+            receipt_number = st.text_input("Petty Cash Slip / Receipt Number* (e.g. 1024)")
             category = st.selectbox("Category*", ["Travel", "Office Supplies", "Maintenance", "Food & Beverage", "Utility", "Other"])
         with col2:
             amount = st.number_input("Amount", min_value=0.0, step=10.0, format="%.2f")
@@ -245,8 +245,8 @@ elif page == "New Expense Claim":
             if not uploaded_files:
                 st.error("❌ Submission Failed: At least 1 Bill / Receipt attachment is required!")
                 st.stop()
-            if not invoice_number.strip():
-                st.error("❌ Invoice Number is mandatory.")
+            if not receipt_number.strip():
+                st.error("❌ Petty Cash Slip / Receipt Number is mandatory.")
                 st.stop()
             if amount <= 0:
                 st.error("❌ Please enter a valid Amount.")
@@ -255,16 +255,17 @@ elif page == "New Expense Claim":
                 st.error("❌ Merchant Name and Description are mandatory.")
                 st.stop()
                 
-            clean_inv_check = invoice_number.strip()
+            clean_rec_check = receipt_number.strip()
             
-            # Safe Duplicate Check with Error Handling
+            # Duplicate Check
             try:
-                existing_check = supabase.table("petty_cash").select("id").eq("invoice_number", clean_inv_check).eq("prism_id", assigned_prism_id).execute()
+                existing_check = supabase.table("petty_cash").select("id").eq("receipt_number", clean_rec_check).eq("prism_id", assigned_prism_id).execute()
                 if existing_check.data:
-                    st.error(f"❌ **Duplicate Error:** Invoice Number `{clean_inv_check}` has already been submitted for this property!")
+                    st.error(f"❌ **Duplicate Error:** Receipt Number `{clean_rec_check}` has already been submitted for this property!")
                     st.stop()
             except Exception as db_err:
-                st.warning(f"⚠️ Note on duplicate check: {str(db_err)}. Proceeding with submission...")
+                st.error(f"❌ Database error during duplicate check: {str(db_err)}. Please ensure the 'receipt_number' column exists in Supabase.")
+                st.stop()
 
             extracted_receipt_rows = []
             amount_matched = False
@@ -313,8 +314,8 @@ elif page == "New Expense Claim":
                 uploaded_urls = []
                 for idx, file_obj in enumerate(uploaded_files):
                     file_ext = file_obj.name.split(".")[-1]
-                    clean_inv = re.sub(r'[^a-zA-Z0-9]', '', invoice_number)
-                    file_name = f"{property_short_name}_inv_{clean_inv}_{idx+1}.{file_ext}"
+                    clean_rec = re.sub(r'[^a-zA-Z0-9]', '', receipt_number)
+                    file_name = f"{property_short_name}_inv_{clean_rec}_{idx+1}.{file_ext}"
                     file_bytes = file_obj.read()
                     storage_path = f"receipts/{file_name}"
                     
@@ -334,7 +335,7 @@ elif page == "New Expense Claim":
                     "submitted_by": st.session_state.username,
                     "claim_date": str(claim_date),
                     "entry_date": str(entry_date),
-                    "invoice_number": invoice_number,
+                    "receipt_number": receipt_number,
                     "category": category,
                     "amount": amount,
                     "currency": "",
@@ -364,10 +365,10 @@ elif page == "Approvals Workflow":
                     date_val = row.get('claim_date', '')
                     row_id = row['id']
                     
-                    with st.expander(f"Claim #{row_id} - Inv: {row.get('invoice_number', 'N/A')} - Amount: {amt_val} ({row['submitted_by']})"):
+                    with st.expander(f"Claim #{row_id} - Slip/Receipt: {row.get('receipt_number', 'N/A')} - Amount: {amt_val} ({row['submitted_by']})"):
                         st.write(f"**Unique ID:** {row.get('unique_id', 'N/A')}")
                         st.write(f"**Property Name:** {row.get('property_name', 'N/A')} ({row.get('prism_id', 'N/A')})")
-                        st.write(f"**Invoice Number:** {row.get('invoice_number', 'N/A')}")
+                        st.write(f"**Petty Cash Slip / Receipt Number:** {row.get('receipt_number', 'N/A')}")
                         st.write(f"**Category:** {cat_val}")
                         st.write(f"**Merchant:** {row.get('merchant', 'N/A')} | **Date:** {date_val}")
                         st.write(f"**Description:** {row.get('description', '')}")
