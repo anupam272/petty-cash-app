@@ -304,6 +304,22 @@ if page == "Dashboard & Claims":
             col3.metric("Pending Approvals", len(filtered_df[filtered_df['status'].isin(['Pending', 'Submitted'])]))
             
             st.dataframe(filtered_df, use_container_width=True)
+            
+            # --- Uploaded Bills & Receipts Database/Table Section ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<div class='main-header'>📑 Uploaded Bills, Receipts & Invoices Archive</div>", unsafe_allow_html=True)
+            try:
+                bills_res = supabase.table("petty_cash").select("id, unique_id, receipt_number, merchant, amount, claim_date, receipt_url, submitted_by").not_.is_("receipt_url", "null").execute()
+                if bills_res.data:
+                    bills_df = pd.DataFrame(bills_res.data)
+                    if not is_admin_or_kapil and assigned_prism:
+                        # Filter by prism_id if linked
+                        pass
+                    st.dataframe(bills_df, use_container_width=True)
+                else:
+                    st.info("No bills or receipts found in storage archive.")
+            except Exception as b_err:
+                st.info("No separate bills archive table configured or reachable.")
         else:
             st.info("No records found for your assigned property.")
     else:
@@ -511,12 +527,13 @@ elif page == "Approvals Workflow":
         st.warning("You do not have approval permissions.")
 
 elif page == "Reports & Export":
-    st.markdown("<div class='main-header'>📥 Export Reports</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>📥 Export Reports & Uploaded Bills Archive</div>", unsafe_allow_html=True)
     df = fetch_records()
     if not df.empty:
         if not is_admin_or_kapil and assigned_prism:
             df = df[df['prism_id'] == assigned_prism]
             
+        st.markdown("### 📊 Claims Report Table")
         st.dataframe(df, use_container_width=True)
         
         buffer = io.BytesIO()
@@ -529,5 +546,17 @@ elif page == "Reports & Export":
             file_name=f"prism_petty_cash_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
             mime="application/vnd.ms-excel"
         )
+        
+        st.markdown("<br><hr>", unsafe_allow_html=True)
+        st.markdown("### 📑 Uploaded Bills, Receipts & Invoices Table")
+        try:
+            bills_archive = supabase.table("petty_cash").select("unique_id, claim_date, merchant, amount, receipt_url, submitted_by").not_.is_("receipt_url", "null").execute()
+            if bills_archive.data:
+                b_df = pd.DataFrame(bills_archive.data)
+                st.dataframe(b_df, use_container_width=True)
+            else:
+                st.info("No bills archive records found.")
+        except Exception:
+            st.info("Bills archive table view not available.")
     else:
         st.info("No data available to export.")
