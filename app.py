@@ -7,7 +7,6 @@ import json
 import re
 import io
 
-# OCR Import check
 try:
     import easyocr
     @st.cache_resource
@@ -31,20 +30,16 @@ except Exception as e:
 
 st.set_page_config(page_title="PRISM Petty Cash Management", page_icon="🏢", layout="wide")
 
-# SAP Enterprise UI Theme Styling with High Contrast Sidebar Fix
 st.markdown("""
     <style>
-    /* Global App Background and Font Style */
     .stApp {
         background-color: #f7f9fa;
         font-family: "72", "72full", Arial, Helvetica, sans-serif;
     }
-    
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Main Header Styling following SAP Standards */
     .main-header {
         font-size: 24px; 
         font-weight: 700; 
@@ -57,7 +52,6 @@ st.markdown("""
         padding-bottom: 8px;
     }
 
-    /* SAP Button Theme (Corporate Blue) */
     .stButton>button {
         width: 100%; 
         border-radius: 4px; 
@@ -72,7 +66,6 @@ st.markdown("""
         border: 1px solid #004f9e;
     }
 
-    /* SAP Shell Dark Sidebar & High Contrast Visibility Fixes */
     section[data-testid="stSidebar"] {
         background-color: #1d2d3e;
         color: #ffffff;
@@ -83,13 +76,9 @@ st.markdown("""
     section[data-testid="stSidebar"] label {
         color: #ffffff !important;
     }
-    
-    /* Radio options text color override for visibility */
     section[data-testid="stSidebar"] div[data-baseweb="radio"] div {
         color: #ffffff !important;
     }
-
-    /* Expense Entry Form Labels: Bold, Larger and Red */
     div[data-testid="stForm"] label p {
         font-size: 16px !important;
         font-weight: bold !important;
@@ -124,6 +113,56 @@ def fetch_records():
 
 PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
 
+# --- SIDEBAR RENDERING (Always visible structure) ---
+st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 5px;'>", unsafe_allow_html=True)
+
+components.html("""
+    <div id="local-time" style="font-size: 13px; color: #4da6ff; font-weight: 600; margin-bottom: 10px; font-family: '72', Arial, sans-serif;">
+        📅 Loading local time...
+    </div>
+    <script>
+    function updateTime() {
+        const now = new Date();
+        const options = { 
+            day: '2-digit', 
+            month: 'short', 
+            year: 'numeric', 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit',
+            hour12: true 
+        };
+        document.getElementById('local-time').innerText = '📅 ' + now.toLocaleString('en-GB', options);
+    }
+    updateTime();
+    setInterval(updateTime, 1000);
+    </script>
+""", height=30)
+
+if st.session_state.authenticated:
+    user_data = st.session_state.user_info
+    st.sidebar.markdown(f"<span style='color: #ffffff;'>User:</span> **{st.session_state.username}**", unsafe_allow_html=True)
+    st.sidebar.markdown(f"<span style='color: #ffffff;'>Role:</span> **{st.session_state.user_role}**", unsafe_allow_html=True)
+    assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
+    st.sidebar.markdown(f"<span style='color: #ffffff;'>Prism ID:</span> **{assigned_prism}**", unsafe_allow_html=True)
+    st.sidebar.markdown("---")
+
+    page = st.sidebar.radio("Navigation", ["Dashboard & Claims", "New Expense Claim", "Approvals Workflow", "Reports & Export"])
+
+    if st.sidebar.button("Logout"):
+        st.session_state.authenticated = False
+        st.session_state.user_role = None
+        st.session_state.username = None
+        st.session_state.user_info = None
+        st.rerun()
+else:
+    assigned_prism = "N/A"
+    page = "Login"
+    st.sidebar.markdown("<span style='color: #ffffff;'>Please log in to access navigation.</span>", unsafe_allow_html=True)
+
+is_admin_or_kapil = st.session_state.user_role in ["Admin", "Super Admin"] or (st.session_state.username and st.session_state.username.lower() == "kapil")
+
+# --- MAIN APP LOGIC ---
 if not st.session_state.authenticated:
     col_logo, col_title = st.columns([2, 6])
     with col_logo:
@@ -185,49 +224,6 @@ if user_data and not user_data.get("email"):
                     st.rerun()
     st.stop()
 
-# SAP Corporate Sidebar with Blue Live Local Time Component
-st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 5px;'>", unsafe_allow_html=True)
-
-components.html("""
-    <div id="local-time" style="font-size: 13px; color: #4da6ff; font-weight: 600; margin-bottom: 10px; font-family: '72', Arial, sans-serif;">
-        📅 Loading local time...
-    </div>
-    <script>
-    function updateTime() {
-        const now = new Date();
-        const options = { 
-            day: '2-digit', 
-            month: 'short', 
-            year: 'numeric', 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            second: '2-digit',
-            hour12: true 
-        };
-        document.getElementById('local-time').innerText = '📅 ' + now.toLocaleString('en-GB', options);
-    }
-    updateTime();
-    setInterval(updateTime, 1000);
-    </script>
-""", height=30)
-
-st.sidebar.markdown(f"<span style='color: #ffffff;'>User:</span> **{st.session_state.username}**", unsafe_allow_html=True)
-st.sidebar.markdown(f"<span style='color: #ffffff;'>Role:</span> **{st.session_state.user_role}**", unsafe_allow_html=True)
-assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
-st.sidebar.markdown(f"<span style='color: #ffffff;'>Prism ID:</span> **{assigned_prism}**", unsafe_allow_html=True)
-st.sidebar.markdown("---")
-
-page = st.sidebar.radio("Navigation", ["Dashboard & Claims", "New Expense Claim", "Approvals Workflow", "Reports & Export"])
-
-if st.sidebar.button("Logout"):
-    st.session_state.authenticated = False
-    st.session_state.user_role = None
-    st.session_state.username = None
-    st.session_state.user_info = None
-    st.rerun()
-
-is_admin_or_kapil = st.session_state.user_role in ["Admin", "Super Admin"] or st.session_state.username.lower() == "kapil"
-
 if page == "Dashboard & Claims":
     st.markdown("<div class='main-header'>📊 Dashboard & Claim Records</div>", unsafe_allow_html=True)
     df = fetch_records()
@@ -288,7 +284,6 @@ elif page == "New Expense Claim":
     st.markdown("<div class='main-header'>📝 Submit New Claim with Auto-Validation & OCR Table</div>", unsafe_allow_html=True)
     
     assigned_prism_id = user_data.get("assigned_prism_id", "")
-    assigned_region = user_data.get("assigned_region", "")
     property_name = ""
     property_short_name = "prop"
     
@@ -339,14 +334,13 @@ elif page == "New Expense Claim":
                 
             clean_rec_check = receipt_number.strip()
             
-            # Duplicate Check
             try:
                 existing_check = supabase.table("petty_cash").select("id").eq("receipt_number", clean_rec_check).eq("prism_id", assigned_prism_id).execute()
                 if existing_check.data:
                     st.error(f"❌ **Duplicate Error:** Receipt Number `{clean_rec_check}` has already been submitted for this property!")
                     st.stop()
             except Exception as db_err:
-                st.error(f"❌ Database error during duplicate check: {str(db_err)}. Please ensure the 'receipt_number' column exists in Supabase.")
+                st.error(f"❌ Database error during duplicate check: {str(db_err)}.")
                 st.stop()
 
             extracted_receipt_rows = []
