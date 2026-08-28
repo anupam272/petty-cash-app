@@ -20,13 +20,14 @@ except Exception as e:
     st.stop()
 
 # 2. App Page Config
-st.set_page_config(page_title="Prism Petty Cash Management", page_icon="💰", layout="wide")
+st.set_page_config(page_title="Prism Petty Cash Management", page_icon="💎", layout="wide")
 
-# Custom Styling
+# Custom Styling (PRISM Branding & Polish)
 st.markdown("""
     <style>
-    .main-header {font-size: 26px; font-weight: bold; color: #1E3A8A; margin-bottom: 20px;}
-    .stButton>button {width: 100%; border-radius: 5px;}
+    .main-header {font-size: 28px; font-weight: bold; color: #1E3A8A; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;}
+    .stButton>button {width: 100%; border-radius: 6px; font-weight: 600;}
+    .prism-badge {background: linear-gradient(135deg, #1E3A8A, #3B82F6); color: white; padding: 4px 12px; border-radius: 12px; font-size: 14px; font-weight: bold;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -57,16 +58,23 @@ def fetch_records():
     res = supabase.table("petty_cash").select("*").order("id", desc=True).execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
-# 4. Authentication Logic
+# 4. Authentication Logic (With PRISM Logo Header)
 if not st.session_state.authenticated:
-    st.markdown("<div class='main-header'>🔐 Prism Petty Cash Management - Login</div>", unsafe_allow_html=True)
+    col_logo, col_title = st.columns([1, 8])
+    with col_logo:
+        st.markdown("<h1 style='text-align: right; margin: 0;'>💎</h1>", unsafe_allow_html=True)
+    with col_title:
+        st.markdown("<div class='main-header'>PRISM - Petty Cash Management & Expenses</div>", unsafe_allow_html=True)
+    
+    st.markdown("---")
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
         with st.form("login_form"):
+            st.markdown("### 🔐 Secure Login")
             user_input = st.text_input("Username")
             pass_input = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Login")
+            submit = st.form_submit_button("Login to PRISM")
             
             if submit:
                 res = supabase.table("users").select("*").eq("username", user_input.strip()).execute()
@@ -84,7 +92,7 @@ if not st.session_state.authenticated:
 # 4.1 First-Time Login Profile Setup (Email & Password Change Check)
 user_data = st.session_state.user_info
 if user_data and not user_data.get("email"):
-    st.markdown("<div class='main-header'>⚠️ Security Setup: Register Email & Update Password</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>💎 PRISM - Security Setup: Register Email & Update Password</div>", unsafe_allow_html=True)
     with st.form("setup_form"):
         st.warning(f"Welcome **{user_data['username']}**! First-time login requires setting up your official email and a strong new password.")
         new_email = st.text_input("Official Email Address:")
@@ -113,11 +121,13 @@ if user_data and not user_data.get("email"):
                     st.rerun()
     st.stop()
 
-# 5. Sidebar Menu
-st.sidebar.title(f"👤 Welcome, {st.session_state.username}")
+# 5. Sidebar Menu with PRISM Branding
+st.sidebar.markdown("### 💎 PRISM PORTAL")
+st.sidebar.caption(f"User: **{st.session_state.username}**")
 st.sidebar.caption(f"Role: **{st.session_state.user_role}**")
 assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
 st.sidebar.caption(f"Prism ID: **{assigned_prism}**")
+st.sidebar.markdown("---")
 
 page = st.sidebar.radio("Navigation", ["Dashboard & Claims", "New Expense Claim", "Approvals Workflow", "Reports & Export"])
 
@@ -130,7 +140,7 @@ if st.sidebar.button("Logout"):
 
 # 6. Page Routing
 if page == "Dashboard & Claims":
-    st.markdown("<div class='main-header'>📊 Dashboard & Claim Records</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>💎 PRISM - Dashboard & Claim Records</div>", unsafe_allow_html=True)
     df = fetch_records()
     if not df.empty:
         col1, col2, col3 = st.columns(3)
@@ -144,16 +154,15 @@ if page == "Dashboard & Claims":
         st.info("No petty cash claims found.")
 
 elif page == "New Expense Claim":
-    st.markdown("<div class='main-header'>📝 Submit New Petty Cash Claim</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>💎 PRISM - Submit New Petty Cash Claim</div>", unsafe_allow_html=True)
     
     assigned_prism_id = user_data.get("assigned_prism_id", "")
     assigned_region = user_data.get("assigned_region", "")
     hotel_name = ""
     
-    # Currency mapping based on Region or Hotel Master entry (Defaulting European regions to EUR/GBP or INR)
     currency = "₹"
     if assigned_region and assigned_region.lower() == "europe":
-        currency = "EUR" # Default European currency (can be EUR or GBP depending on preference)
+        currency = "EUR"
     
     if assigned_prism_id:
         h_res = supabase.table("hotel_master").select("property_name", "currency").eq("prism_id", assigned_prism_id).execute()
@@ -184,7 +193,7 @@ elif page == "New Expense Claim":
             accept_multiple_files=True
         )
         
-        submitted = st.form_submit_button("Submit Claim")
+        submitted = st.form_submit_button("Submit Claim to PRISM")
         if submitted:
             if not uploaded_files:
                 st.error("❌ Submission Failed: At least 1 Bill / Receipt attachment is required!")
@@ -236,12 +245,12 @@ elif page == "New Expense Claim":
                     "receipt_url": json.dumps(uploaded_urls)
                 }
                 supabase.table("petty_cash").insert(new_data).execute()
-                st.success(f"✅ Petty Cash Claim Submitted Successfully with {len(uploaded_files)} attachment(s)! Unique ID: {unique_id}")
+                st.success(f"✅ PRISM Claim Submitted Successfully with {len(uploaded_files)} attachment(s)! Unique ID: {unique_id}")
             except Exception as e:
                 st.error(f"❌ Error submitting claim: {str(e)}")
 
 elif page == "Approvals Workflow":
-    st.markdown("<div class='main-header'>✅ Pending Approvals</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>💎 PRISM - Pending Approvals</div>", unsafe_allow_html=True)
     if st.session_state.user_role in ["Manager", "Admin", "PPM", "GM"]:
         df = fetch_records()
         if not df.empty:
@@ -290,19 +299,19 @@ elif page == "Approvals Workflow":
         st.warning("You do not have approval permissions.")
 
 elif page == "Reports & Export":
-    st.markdown("<div class='main-header'>📥 Export Reports</div>", unsafe_allow_html=True)
+    st.markdown("<div class='main-header'>💎 PRISM - Export Reports</div>", unsafe_allow_html=True)
     df = fetch_records()
     if not df.empty:
         st.dataframe(df, use_container_width=True)
         
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='PettyCashReport')
+            df.to_excel(writer, index=False, sheet_name='PrismPettyCashReport')
             
         st.download_button(
-            label="📊 Download Excel Report",
+            label="📊 Download PRISM Excel Report",
             data=buffer.getvalue(),
-            file_name=f"petty_cash_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            file_name=f"prism_petty_cash_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
             mime="application/vnd.ms-excel"
         )
     else:
