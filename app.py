@@ -296,18 +296,16 @@ if page == "Dashboard & Claims":
         with st.expander("🔍 Advanced Filters & Slicer Options", expanded=True):
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
             
-            # 1. Region Filter
+            # 1. Region Filter (Strictly filtering out property codes/IDs)
             with col_f1:
                 regions_set = set()
-                if not hotels_df.empty:
-                    for col in ['property_region', 'region', 'city']:
-                        if col in hotels_df.columns:
-                            regions_set.update([str(r).strip() for r in hotels_df[col].dropna().unique() if str(r).strip() != "" and str(r).lower() != "nan" and str(r).lower() != "none"])
-                if not df.empty:
-                    for col in ['property_region', 'region', 'prism_id']:
-                        if col in df.columns:
-                            regions_set.update([str(r).strip() for r in df[col].dropna().unique() if str(r).strip() != "" and str(r).lower() != "nan" and str(r).lower() != "none"])
-                
+                if not hotels_df.empty and 'property_region' in hotels_df.columns:
+                    for r in hotels_df['property_region'].dropna():
+                        r_str = str(r).strip()
+                        # Region should not look like a prism_id (e.g. contains numbers or underscores like EN_WCW001)
+                        if r_str and r_str.lower() not in ["nan", "none"] and not any(char.isdigit() for char in r_str) and "_" not in r_str:
+                            regions_set.add(r_str)
+                            
                 if not regions_set:
                     regions_set = {"Europe", "Global", "Default"}
                     
@@ -369,8 +367,6 @@ if page == "Dashboard & Claims":
                     filtered_df = filtered_df[filtered_df['property_name'].isin(matched_props)]
                 elif 'property_region' in filtered_df.columns:
                     filtered_df = filtered_df[filtered_df['property_region'] == selected_region]
-                elif 'region' in filtered_df.columns:
-                    filtered_df = filtered_df[filtered_df['region'] == selected_region]
                     
             if selected_property != "All":
                 clean_prop_name = selected_property.split(" (")[0]
