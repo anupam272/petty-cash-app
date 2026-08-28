@@ -38,6 +38,13 @@ st.markdown("""
     .main-header {font-size: 26px; font-weight: bold; color: #111111; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;}
     .stButton>button {width: 100%; border-radius: 6px; font-weight: 600; background-color: #111111; color: white;}
     .stButton>button:hover {background-color: #333333; color: white;}
+    
+    /* Expense entry form labels: Bold, larger and red */
+    div[data-testid="stForm"] label p {
+        font-size: 16px !important;
+        font-weight: bold !important;
+        color: #D32F2F !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -128,7 +135,11 @@ if user_data and not user_data.get("email"):
                     st.rerun()
     st.stop()
 
-st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+# Sidebar Setup with Professional Live Date & Time Header
+st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 5px;'>", unsafe_allow_html=True)
+current_time_str = datetime.now().strftime('%d %b %Y, %I:%M:%S %p')
+st.sidebar.markdown(f"<div style='font-size: 12px; color: #555; font-weight: 600; margin-bottom: 10px;'>📅 {current_time_str}</div>", unsafe_allow_html=True)
+
 st.sidebar.caption(f"User: **{st.session_state.username}**")
 st.sidebar.caption(f"Role: **{st.session_state.user_role}**")
 assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
@@ -233,7 +244,7 @@ elif page == "New Expense Claim":
             description = st.text_area("Description / Reason*")
             
         st.markdown("---")
-        st.markdown("**📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)**")
+        st.markdown("<p style='font-size: 16px; font-weight: bold; color: #D32F2F;'>📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)</p>", unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload receipts/bills (Images or PDFs)", 
             type=["png", "jpg", "jpeg", "pdf"], 
