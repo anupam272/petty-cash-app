@@ -61,11 +61,14 @@ def fetch_records():
     res = supabase.table("petty_cash").select("*").order("id", desc=True).execute()
     return pd.DataFrame(res.data) if res.data else pd.DataFrame()
 
-# 4. Authentication Logic (With Official PRISM Website Logo)
+# Official PRISM Logo URL provided by you
+PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
+
+# 4. Authentication Logic
 if not st.session_state.authenticated:
     col_logo, col_title = st.columns([2, 6])
     with col_logo:
-        st.markdown("<img src='https://www.prismlife.com/wp-content/uploads/2023/10/PRISM-Logo.svg' style='max-width: 140px; margin-top: 10px;'>", unsafe_allow_html=True)
+        st.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 140px; margin-top: 10px;'>", unsafe_allow_html=True)
     with col_title:
         st.markdown("<h3 style='margin: 0; color: #111;'>Petty Cash Management Portal</h3>", unsafe_allow_html=True)
     
@@ -125,7 +128,7 @@ if user_data and not user_data.get("email"):
     st.stop()
 
 # 5. Sidebar Menu with PRISM Logo
-st.sidebar.markdown("<img src='https://www.prismlife.com/wp-content/uploads/2023/10/PRISM-Logo.svg' style='max-width: 110px; margin-bottom: 10px;'>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 10px;'>", unsafe_allow_html=True)
 st.sidebar.caption(f"User: **{st.session_state.username}**")
 st.sidebar.caption(f"Role: **{st.session_state.user_role}**")
 assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
