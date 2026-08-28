@@ -1,8 +1,9 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 from supabase import create_client, Client
+import json
+import re
 import io
 
 # 1. Database Connection (Secrets)
@@ -19,7 +20,7 @@ except Exception as e:
     st.stop()
 
 # 2. App Page Config
-st.set_page_config(page_title="Petty Cash Mgt", page_icon="💰", layout="wide")
+st.set_page_config(page_title="Prism Petty Cash Management", page_icon="💰", layout="wide")
 
 # Custom Styling
 st.markdown("""
@@ -36,6 +37,20 @@ if "user_role" not in st.session_state:
     st.session_state.user_role = None
 if "username" not in st.session_state:
     st.session_state.username = None
+if "user_info" not in st.session_state:
+    st.session_state.user_info = None
+
+# Password Policy Function
+def check_password_policy(password):
+    if len(password) < 8:
+        return False, "Password kam se kam 8 characters ka hona chahiye."
+    if not re.search(r"[A-Z]", password):
+        return False, "Kam se kam 1 Capital letter (A-Z) hona zaroori hai."
+    if not re.search(r"\d", password):
+        return False, "Kam se kam 1 Number (0-9) hona zaroori hai."
+    if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>/?]", password):
+        return False, "Kam se kam 1 Special character (@, #, $) hona zaroori hai."
+    return True, "Valid"
 
 # Helper Functions
 def fetch_records():
@@ -54,25 +69,63 @@ if not st.session_state.authenticated:
             submit = st.form_submit_button("Login")
             
             if submit:
-                # Query database for credentials
                 res = supabase.table("users").select("*").eq("username", user_input.strip()).execute()
                 if res.data and res.data[0]["password"] == pass_input.strip():
                     st.session_state.authenticated = True
                     st.session_state.username = res.data[0]["username"]
                     st.session_state.user_role = res.data[0]["role"]
+                    st.session_state.user_info = res.data[0]
                     st.success("Login Successful!")
                     st.rerun()
                 else:
                     st.error("Invalid Username or Password")
     st.stop()
 
+# 4.1 First-Time Login Profile Setup (Email & Password Change Check)
+user_data = st.session_state.user_info
+if user_data and not user_data.get("email"):
+    st.markdown("<div class='main-header'>⚠️ Security Setup: Register Email & Update Password</div>", unsafe_allow_html=True)
+    with st.form("setup_form"):
+        st.warning(f"Welcome **{user_data['username']}**! First-time login par apni official email aur naya strong password set karna mandatory hai.")
+        new_email = st.text_input("Official Email Address:")
+        new_pass = st.text_input("New Password:", type="password")
+        confirm_pass = st.text_input("Confirm New Password:", type="password")
+        setup_submit = st.form_submit_button("Save & Continue")
+        
+        if setup_submit:
+            if not ("@" in new_email and "." in new_email):
+                st.error("Kripya valid email address enter karein.")
+            elif new_pass != confirm_pass:
+                st.error("Passwords match nahi kar rahe hain.")
+            else:
+                is_valid, msg = check_password_policy(new_pass)
+                if not is_valid:
+                    st.error(f"❌ Policy Error: {msg}")
+                else:
+                    supabase.table("users").update({
+                        "email": new_email,
+                        "password": new_pass
+                    }).eq("id", user_data["id"]).execute()
+                    
+                    st.session_state.user_info["email"] = new_email
+                    st.session_state.user_info["password"] = new_pass
+                    st.success("✅ Profile successfully updated! Reloading...")
+                    st.rerun()
+    st.stop()
+
 # 5. Sidebar Menu
 st.sidebar.title(f"👤 Welcome, {st.session_state.username}")
 st.sidebar.caption(f"Role: **{st.session_state.user_role}**")
+assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
+st.sidebar.caption(f"Prism ID: **{assigned_prism}**")
+
 page = st.sidebar.radio("Navigation", ["Dashboard & Claims", "New Expense Claim", "Approvals Workflow", "Reports & Export"])
 
 if st.sidebar.button("Logout"):
     st.session_state.authenticated = False
+    st.session_state.user_role = None
+    st.session_state.username = None
+    st.session_state.user_info = None
     st.rerun()
 
 # 6. Page Routing
@@ -82,8 +135,9 @@ if page == "Dashboard & Claims":
     if not df.empty:
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Claims", len(df))
-        col2.metric("Total Amount", f"₹ {df['amount'].sum():,.2f}")
-        col3.metric("Pending Approvals", len(df[df['status'] == 'Pending']))
+        amt_col = 'invoice_amount' if 'invoice_amount' in df.columns else 'amount'
+        col2.metric("Total Amount", f"₹ {df[amt_col].sum():,.2f}")
+        col3.metric("Pending Approvals", len(df[df['status'].isin(['Pending', 'Submitted'])]))
         
         st.dataframe(df, use_container_width=True)
     else:
@@ -91,55 +145,140 @@ if page == "Dashboard & Claims":
 
 elif page == "New Expense Claim":
     st.markdown("<div class='main-header'>📝 Submit New Petty Cash Claim</div>", unsafe_allow_html=True)
-    with st.form("claim_form"):
+    
+    assigned_prism_id = user_data.get("assigned_prism_id", "")
+    assigned_region = user_data.get("assigned_region", "")
+    hotel_name = ""
+    currency = "₹"
+    if assigned_prism_id:
+        h_res = supabase.table("Hotel_Master").select("Property_Name, Currency").eq("Prism_id", assigned_prism_id).execute()
+        if h_res.data:
+            hotel_name = h_res.data[0].get("Property_Name", "")
+            currency = h_res.data[0].get("Currency", "₹")
+
+    with st.form("claim_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
-            claim_date = st.date_input("Date", datetime.today())
-            category = st.selectbox("Category", ["Office Supplies", "Travel & Fuel", "Food & Tea", "Maintenance", "Others"])
-            amount = st.number_input("Amount (₹)", min_value=1.0, step=10.0)
+            claim_date = st.date_input("Entry Date", datetime.today())
+            category = st.selectbox("Expense Type*", ["Travel", "Office Supplies", "Maintenance", "Food & Beverage", "Utility", "Other"])
+            subtype = st.text_input("Subtype (e.g., Taxi, Stationery)")
+            invoice_amount = st.number_input(f"Invoice Amount ({currency})", min_value=0.0, step=10.0, format="%.2f")
         with col2:
+            vendor_name = st.text_input("Vendor Name*")
+            receipt_no = st.text_input("Receipt / Bill No.*")
             description = st.text_area("Description / Reason")
-            merchant = st.text_input("Merchant / Paid To")
+            remarks = st.text_input("Remarks (Optional)")
             
+        st.markdown("---")
+        st.markdown("**📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)**")
+        uploaded_files = st.file_uploader(
+            "Upload receipts/bills (Images or PDFs)", 
+            type=["png", "jpg", "jpeg", "pdf"], 
+            accept_multiple_files=True
+        )
+        
         submitted = st.form_submit_button("Submit Claim")
         if submitted:
-            new_data = {
-                "created_at": datetime.now().isoformat(),
-                "submitted_by": st.session_state.username,
-                "claim_date": str(claim_date),
-                "category": category,
-                "amount": amount,
-                "description": description,
-                "merchant": merchant,
-                "status": "Pending"
-            }
-            supabase.table("petty_cash").insert(new_data).execute()
-            st.success("Claim Submitted Successfully!")
+            if not uploaded_files:
+                st.error("❌ Submission Failed: Kam se kam 1 Bill / Receipt Attachment upload karna zaroori hai!")
+                st.stop()
+            if invoice_amount <= 0:
+                st.error("❌ Please enter a valid Invoice Amount.")
+                st.stop()
+            if not vendor_name.strip() or not receipt_no.strip():
+                st.error("❌ Vendor Name aur Receipt No. bharna zaroori hai.")
+                st.stop()
+                
+            try:
+                uploaded_urls = []
+                for idx, file_obj in enumerate(uploaded_files):
+                    file_ext = file_obj.name.split(".")[-1]
+                    file_name = f"{assigned_prism_id}_{claim_date}_{receipt_no}_{idx+1}.{file_ext}"
+                    file_bytes = file_obj.read()
+                    storage_path = f"receipts/{file_name}"
+                    
+                    supabase.storage.from_("petty_cash_receipts").upload(
+                        path=storage_path, 
+                        file=file_bytes, 
+                        file_options={"content-type": file_obj.type}
+                    )
+                    public_url = supabase.storage.from_("petty_cash_receipts").get_public_url(storage_path)
+                    uploaded_urls.append(public_url)
+                
+                prism_clean = assigned_prism_id.replace('DE_', '') if assigned_prism_id else 'GENERAL'
+                unique_id = f"Prism{prism_clean}-{int(datetime.now().timestamp())}"
+                
+                new_data = {
+                    "unique_id": unique_id,
+                    "created_at": datetime.now().isoformat(),
+                    "submitted_by": st.session_state.username,
+                    "entry_date": str(claim_date),
+                    "oyo_id": assigned_prism_id,
+                    "property_name": hotel_name,
+                    "property_region": assigned_region,
+                    "currency": currency,
+                    "exp_type": category,
+                    "subtype": subtype,
+                    "invoice_amount": invoice_amount,
+                    "amount": invoice_amount,
+                    "vendor_name": vendor_name,
+                    "receipt_no": receipt_no,
+                    "description": description,
+                    "remarks": remarks,
+                    "status": "Submitted",
+                    "receipt_url": json.dumps(uploaded_urls)
+                }
+                supabase.table("petty_cash").insert(new_data).execute()
+                st.success(f"✅ Petty Cash Claim Submitted Successfully with {len(uploaded_files)} attachment(s)! Unique ID: {unique_id}")
+            except Exception as e:
+                st.error(f"❌ Error submitting claim: {str(e)}")
 
 elif page == "Approvals Workflow":
     st.markdown("<div class='main-header'>✅ Pending Approvals</div>", unsafe_allow_html=True)
     if st.session_state.user_role in ["Manager", "Admin", "PPM", "GM"]:
         df = fetch_records()
         if not df.empty:
-            pending_df = df[df["status"] == "Pending"]
+            pending_df = df[df["status"].isin(["Pending", "Submitted"])]
             if not pending_df.empty:
                 for idx, row in pending_df.iterrows():
-                    with st.expander(f"Claim #{row['id']} - ₹{row['amount']} ({row['submitted_by']})"):
-                        st.write(f"**Category:** {row['category']}")
-                        st.write(f"**Reason:** {row['description']}")
-                        st.write(f"**Date:** {row['claim_date']}")
+                    amt_val = row.get('invoice_amount', row.get('amount', 0))
+                    cat_val = row.get('exp_type', row.get('category', 'General'))
+                    date_val = row.get('entry_date', row.get('claim_date', ''))
+                    row_id = row['id']
+                    
+                    with st.expander(f"Claim #{row_id} - {row.get('currency', '₹')} {amt_val} ({row['submitted_by']})"):
+                        st.write(f"**Unique ID:** {row.get('unique_id', 'N/A')}")
+                        st.write(f"**Category:** {cat_val} / {row.get('subtype', '')}")
+                        st.write(f"**Vendor:** {row.get('vendor_name', 'N/A')} | **Receipt No:** {row.get('receipt_no', 'N/A')}")
+                        st.write(f"**Reason:** {row.get('description', '')}")
+                        st.write(f"**Date:** {date_val}")
+                        
+                        receipt_data = row.get('receipt_url')
+                        if receipt_data:
+                            try:
+                                urls = json.loads(receipt_data) if isinstance(receipt_data, str) else receipt_data
+                                if isinstance(urls, list):
+                                    st.markdown("**Attached Receipts:**")
+                                    for u_idx, u_link in enumerate(urls):
+                                        st.markdown(f"- [View Attachment {u_idx+1}]({u_link})")
+                                elif isinstance(urls, str):
+                                    st.markdown(f"- [View Attachment]({urls})")
+                            except Exception:
+                                st.markdown(f"- [View Attachment]({receipt_data})")
                         
                         col1, col2 = st.columns(2)
-                        if col1.button(f"Approve #{row['id']}", key=f"app_{row['id']}"):
-                            supabase.table("petty_cash").update({"status": "Approved"}).eq("id", row['id']).execute()
-                            st.success(f"Claim #{row['id']} Approved!")
+                        if col1.button(f"Approve #{row_id}", key=f"app_{row_id}"):
+                            supabase.table("petty_cash").update({"status": "Approved", "approved_by": st.session_state.username}).eq("id", row_id).execute()
+                            st.success(f"Claim #{row_id} Approved!")
                             st.rerun()
-                        if col2.button(f"Reject #{row['id']}", key=f"rej_{row['id']}"):
-                            supabase.table("petty_cash").update({"status": "Rejected"}).eq("id", row['id']).execute()
-                            st.error(f"Claim #{row['id']} Rejected!")
+                        if col2.button(f"Reject #{row_id}", key=f"rej_{row_id}"):
+                            supabase.table("petty_cash").update({"status": "Rejected"}).eq("id", row_id).execute()
+                            st.error(f"Claim #{row_id} Rejected!")
                             st.rerun()
             else:
                 st.info("No pending approvals.")
+        else:
+            st.info("No records found.")
     else:
         st.warning("You do not have approval permissions.")
 
@@ -147,9 +286,8 @@ elif page == "Reports & Export":
     st.markdown("<div class='main-header'>📥 Export Reports</div>", unsafe_allow_html=True)
     df = fetch_records()
     if not df.empty:
-        st.dataframe(df)
+        st.dataframe(df, use_container_width=True)
         
-        # Excel Export Buffer
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='PettyCashReport')
@@ -160,3 +298,5 @@ elif page == "Reports & Export":
             file_name=f"petty_cash_report_{datetime.now().strftime('%Y%m%d')}.xlsx",
             mime="application/vnd.ms-excel"
         )
+    else:
+        st.info("No data available to export.")
