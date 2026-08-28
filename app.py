@@ -30,20 +30,61 @@ except Exception as e:
 
 st.set_page_config(page_title="PRISM Petty Cash Management", page_icon="🏢", layout="wide")
 
+# SAP Enterprise UI Theme Styling (Background, Font & Elements)
 st.markdown("""
     <style>
+    /* Global App Background and Font Style */
+    .stApp {
+        background-color: #f7f9fa;
+        font-family: "72", "72full", Arial, Helvetica, sans-serif;
+    }
+    
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    .main-header {font-size: 26px; font-weight: bold; color: #111111; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;}
-    .stButton>button {width: 100%; border-radius: 6px; font-weight: 600; background-color: #111111; color: white;}
-    .stButton>button:hover {background-color: #333333; color: white;}
-    
-    /* Expense entry form labels: Bold, larger and red */
+
+    /* Main Header Styling following SAP Standards */
+    .main-header {
+        font-size: 24px; 
+        font-weight: 700; 
+        color: #32363a; 
+        margin-bottom: 20px; 
+        display: flex; 
+        align-items: center; 
+        gap: 10px;
+        border-bottom: 2px solid #0a6ed1;
+        padding-bottom: 8px;
+    }
+
+    /* SAP Button Theme (Corporate Blue) */
+    .stButton>button {
+        width: 100%; 
+        border-radius: 4px; 
+        font-weight: 600; 
+        background-color: #0a6ed1; 
+        color: white;
+        border: 1px solid #0a6ed1;
+    }
+    .stButton>button:hover {
+        background-color: #004f9e; 
+        color: white;
+        border: 1px solid #004f9e;
+    }
+
+    /* Sidebar Styling - SAP Shell Navigation */
+    section[data-testid="stSidebar"] {
+        background-color: #1d2d3e;
+        color: #ffffff;
+    }
+    section[data-testid="stSidebar"] .stMarkdown {
+        color: #ffffff;
+    }
+
+    /* Expense Entry Form Labels: Bold, Larger and Red (As requested) */
     div[data-testid="stForm"] label p {
         font-size: 16px !important;
         font-weight: bold !important;
-        color: #D32F2F !important;
+        color: #bb0000 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -79,7 +120,7 @@ if not st.session_state.authenticated:
     with col_logo:
         st.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 140px; margin-top: 10px;'>", unsafe_allow_html=True)
     with col_title:
-        st.markdown("<h3 style='margin: 0; color: #11;'>Petty Cash Management Portal</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin: 0; color: #32363a;'>Petty Cash Management Portal</h3>", unsafe_allow_html=True)
     
     st.markdown("---")
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -135,15 +176,15 @@ if user_data and not user_data.get("email"):
                     st.rerun()
     st.stop()
 
-# Sidebar Setup with Professional Live Date & Time Header
+# SAP Corporate Sidebar with Live Date & Time Header
 st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 5px;'>", unsafe_allow_html=True)
 current_time_str = datetime.now().strftime('%d %b %Y, %I:%M:%S %p')
-st.sidebar.markdown(f"<div style='font-size: 12px; color: #555; font-weight: 600; margin-bottom: 10px;'>📅 {current_time_str}</div>", unsafe_allow_html=True)
+st.sidebar.markdown(f"<div style='font-size: 12px; color: #b8c5d6; font-weight: 600; margin-bottom: 10px;'>📅 {current_time_str}</div>", unsafe_allow_html=True)
 
-st.sidebar.caption(f"User: **{st.session_state.username}**")
-st.sidebar.caption(f"Role: **{st.session_state.user_role}**")
+st.sidebar.markdown(f"<span style='color: #b8c5d6;'>User:</span> **{st.session_state.username}**", unsafe_allow_html=True)
+st.sidebar.markdown(f"<span style='color: #b8c5d6;'>Role:</span> **{st.session_state.user_role}**", unsafe_allow_html=True)
 assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
-st.sidebar.caption(f"Prism ID: **{assigned_prism}**")
+st.sidebar.markdown(f"<span style='color: #b8c5d6;'>Prism ID:</span> **{assigned_prism}**", unsafe_allow_html=True)
 st.sidebar.markdown("---")
 
 page = st.sidebar.radio("Navigation", ["Dashboard & Claims", "New Expense Claim", "Approvals Workflow", "Reports & Export"])
@@ -244,7 +285,7 @@ elif page == "New Expense Claim":
             description = st.text_area("Description / Reason*")
             
         st.markdown("---")
-        st.markdown("<p style='font-size: 16px; font-weight: bold; color: #D32F2F;'>📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size: 16px; font-weight: bold; color: #bb0000;'>📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)</p>", unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload receipts/bills (Images or PDFs)", 
             type=["png", "jpg", "jpeg", "pdf"], 
