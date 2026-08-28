@@ -95,12 +95,17 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* Custom Form Field Labels */
+    /* SAP Fiori Form Field Labels */
     .fiori-label {
-        font-size: 14px !important;
-        font-weight: 600 !important;
-        color: #1d2d3e !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        color: #32363a !important;
         margin-bottom: 4px;
+        letter-spacing: 0.1px;
+    }
+    .fiori-required {
+        color: #bb0000 !important;
+        font-weight: 700;
     }
     
     div[data-testid="stForm"] {
@@ -330,24 +335,24 @@ elif page == "New Expense Claim":
             st.markdown('<p class="fiori-label">Entry Date</p>', unsafe_allow_html=True)
             entry_date = st.date_input("Entry Date", datetime.today(), label_visibility="collapsed")
             
-            st.markdown('<p class="fiori-label">Petty Cash Slip / Receipt Number <span style="color: #bb0000;">*</span> (e.g. 1024)</p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">Petty Cash Slip / Receipt Number <span class="fiori-required">*</span> <span style="font-weight: 400; color: #666; font-size: 11px;">(e.g. 1024)</span></p>', unsafe_allow_html=True)
             receipt_number = st.text_input("Petty Cash Slip / Receipt Number", label_visibility="collapsed")
             
-            st.markdown('<p class="fiori-label">Category <span style="color: #bb0000;">*</span></p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">Category <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
             category = st.selectbox("Category", ["Travel", "Office Supplies", "Maintenance", "Food & Beverage", "Utility", "Other"], label_visibility="collapsed")
             
         with col2:
             st.markdown('<p class="fiori-label">Amount</p>', unsafe_allow_html=True)
             amount = st.number_input("Amount", min_value=0.0, step=10.0, format="%.2f", label_visibility="collapsed")
             
-            st.markdown('<p class="fiori-label">Merchant / Vendor Name <span style="color: #bb0000;">*</span></p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">Merchant / Vendor Name <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
             merchant = st.text_input("Merchant / Vendor Name", label_visibility="collapsed")
             
-            st.markdown('<p class="fiori-label">Description / Reason <span style="color: #bb0000;">*</span></p>', unsafe_allow_html=True)
+            st.markdown('<p class="fiori-label">Description / Reason <span class="fiori-required">*</span></p>', unsafe_allow_html=True)
             description = st.text_area("Description / Reason", label_visibility="collapsed")
             
         st.markdown("<hr style='margin: 15px 0; border-color: #eee;'>", unsafe_allow_html=True)
-        st.markdown("<p style='font-size: 14px; font-weight: 600; color: #1d2d3e;'>📎 Bill / Receipt Attachments <span style='color: #bb0000;'>*</span> <span style='font-weight: normal; color: #666;'>(Mandatory - Multiple Allowed)</span></p>", unsafe_allow_html=True)
+        st.markdown("<p class='fiori-label'>📎 Bill / Receipt Attachments <span class="fiori-required">*</span> <span style='font-weight: 400; color: #666;'>(Mandatory - Multiple Allowed)</span></p>", unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload receipts/bills (Images or PDFs)", 
             type=["png", "jpg", "jpeg", "pdf"], 
