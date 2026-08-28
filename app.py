@@ -288,7 +288,7 @@ elif page == "New Expense Claim":
                     "description": description,
                     "status": "Submitted",
                     "property_name": property_name,
-                    "oyo_id": assigned_prism_id,
+                    "prism_id": assigned_prism_id,
                     "unique_id": unique_id
                 }
                 supabase.table("petty_cash").insert(new_data).execute()
@@ -311,7 +311,7 @@ elif page == "Approvals Workflow":
                     
                     with st.expander(f"Claim #{row_id} - {row.get('currency', '₹')} {amt_val} ({row['submitted_by']})"):
                         st.write(f"**Unique ID:** {row.get('unique_id', 'N/A')}")
-                        st.write(f"**Property Name:** {row.get('property_name', 'N/A')} ({row.get('oyo_id', 'N/A')})")
+                        st.write(f"**Property Name:** {row.get('property_name', 'N/A')} ({row.get('prism_id', 'N/A')})")
                         st.write(f"**Category:** {cat_val}")
                         st.write(f"**Merchant:** {row.get('merchant', 'N/A')} | **Date:** {date_val}")
                         st.write(f"**Description:** {row.get('description', '')}")
