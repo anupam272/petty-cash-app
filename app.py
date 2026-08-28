@@ -30,51 +30,63 @@ except Exception as e:
 
 st.set_page_config(page_title="PRISM Petty Cash Management", page_icon="🏢", layout="wide")
 
-# SAP Enterprise UI Theme Styling + Hide File Uploader 200MB Limit Text
+# Exact SAP Fiori Horizon & Shell Theme Custom Styling
 st.markdown("""
     <style>
+    /* SAP Global Background & Font */
     .stApp {
-        background-color: #f7f9fa;
+        background-color: #f5f6f7;
         font-family: "72", "72full", Arial, Helvetica, sans-serif;
     }
+    
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Hide Streamlit file uploader size limit subtext ("200MB per file • PNG, JPG, PDF") */
+    /* Hide Streamlit file uploader default size limit subtext ("200MB per file...") */
     [data-testid="stFileUploader"] section small {
         display: none !important;
     }
 
+    /* SAP Fiori Header Bar Style */
     .main-header {
-        font-size: 24px; 
-        font-weight: 700; 
-        color: #32363a; 
+        font-size: 20px; 
+        font-weight: 600; 
+        color: #1d2d3e; 
         margin-bottom: 20px; 
         display: flex; 
         align-items: center; 
         gap: 10px;
-        border-bottom: 2px solid #0a6ed1;
-        padding-bottom: 8px;
+        border-bottom: 2px solid #0070f2;
+        padding-bottom: 10px;
+        background-color: #ffffff;
+        padding: 12px 16px;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
 
+    /* SAP Enterprise Primary Buttons */
     .stButton>button {
         width: 100%; 
         border-radius: 4px; 
         font-weight: 600; 
-        background-color: #0a6ed1; 
+        background-color: #0070f2; 
         color: white;
-        border: 1px solid #0a6ed1;
+        border: 1px solid #0070f2;
+        padding: 6px 16px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     .stButton>button:hover {
-        background-color: #004f9e; 
+        background-color: #005cc5; 
         color: white;
-        border: 1px solid #004f9e;
+        border: 1px solid #005cc5;
     }
 
+    /* SAP Shell Dark Sidebar (Exact Color Match: #1d2d3e) */
     section[data-testid="stSidebar"] {
         background-color: #1d2d3e;
         color: #ffffff;
+        border-right: 1px solid #2c3e50;
     }
     section[data-testid="stSidebar"] .stMarkdown, 
     section[data-testid="stSidebar"] span, 
@@ -82,13 +94,26 @@ st.markdown("""
     section[data-testid="stSidebar"] label {
         color: #ffffff !important;
     }
+    
+    /* Radio options text styling in sidebar */
     section[data-testid="stSidebar"] div[data-baseweb="radio"] div {
         color: #ffffff !important;
     }
+
+    /* SAP Form Input Labels Styling */
     div[data-testid="stForm"] label p {
-        font-size: 15px !important;
-        font-weight: bold !important;
-        color: #bb0000 !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        color: #0070f2 !important;
+    }
+    
+    /* SAP Card Container Styling for Forms */
+    div[data-testid="stForm"] {
+        background-color: #ffffff;
+        padding: 24px;
+        border-radius: 8px;
+        border: 1px solid #e5e5e5;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -119,11 +144,11 @@ def fetch_records():
 
 PRISM_LOGO_URL = "https://www.prismlife.com/img/logo.webp"
 
-# --- SIDEBAR RENDERING ---
-st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 110px; margin-bottom: 5px;'>", unsafe_allow_html=True)
+# --- SAP SIDEBAR SHELL HEADER & NAVIGATION ---
+st.sidebar.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 100px; margin-bottom: 10px; background: white; padding: 5px; border-radius: 4px;'>", unsafe_allow_html=True)
 
 components.html("""
-    <div id="local-time" style="font-size: 13px; color: #4da6ff; font-weight: 600; margin-bottom: 10px; font-family: '72', Arial, sans-serif;">
+    <div id="local-time" style="font-size: 12px; color: #73c0ff; font-weight: 600; margin-bottom: 15px; font-family: '72', Arial, sans-serif;">
         📅 Loading local time...
     </div>
     <script>
@@ -143,18 +168,17 @@ components.html("""
     updateTime();
     setInterval(updateTime, 1000);
     </script>
-""", height=30)
+""", height=28)
 
 if st.session_state.authenticated:
     user_data = st.session_state.user_info
-    st.sidebar.markdown(f"<span style='color: #ffffff;'>User:</span> **{st.session_state.username}**", unsafe_allow_html=True)
-    st.sidebar.markdown(f"<span style='color: #ffffff;'>Role:</span> **{st.session_state.user_role}**", unsafe_allow_html=True)
-    assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
-    st.sidebar.markdown(f"<span style='color: #ffffff;'>Prism ID:</span> **{assigned_prism}**", unsafe_allow_html=True)
-    st.sidebar.markdown("---")
+    st.sidebar.markdown(f"<div style='font-size: 13px; line-height: 1.5;'><span style='color: #b0c4de;'>User:</span> <strong style='color: #ffffff;'>{st.session_state.username}</strong><br><span style='color: #b0c4de;'>Role:</span> <strong style='color: #ffffff;'>{st.session_state.user_role}</strong><br><span style='color: #b0c4de;'>Prism ID:</span> <strong style='color: #ffffff;'>{user_data.get('assigned_prism_id', 'N/A')}</strong></div>", unsafe_allow_html=True)
+    st.sidebar.markdown("<hr style='border-color: #2c3e50; margin: 15px 0;'>", unsafe_allow_html=True)
+    
+    st.sidebar.markdown("<span style='font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #8fa1b3; font-weight: bold;'>Navigation</span>", unsafe_allow_html=True)
+    page = st.sidebar.radio("", ["Dashboard & Claims", "New Expense Claim", "Approvals Workflow", "Reports & Export"], label_visibility="collapsed")
 
-    page = st.sidebar.radio("Navigation", ["Dashboard & Claims", "New Expense Claim", "Approvals Workflow", "Reports & Export"])
-
+    st.sidebar.markdown("<br>" * 2, unsafe_allow_html=True)
     if st.sidebar.button("Logout"):
         st.session_state.authenticated = False
         st.session_state.user_role = None
@@ -162,19 +186,18 @@ if st.session_state.authenticated:
         st.session_state.user_info = None
         st.rerun()
 else:
-    assigned_prism = "N/A"
     page = "Login"
-    st.sidebar.markdown("<span style='color: #ffffff;'>Please log in to access navigation.</span>", unsafe_allow_html=True)
+    st.sidebar.markdown("<span style='color: #b0c4de; font-size: 13px;'>Please log in to access system modules.</span>", unsafe_allow_html=True)
 
 is_admin_or_kapil = st.session_state.user_role in ["Admin", "Super Admin"] or (st.session_state.username and st.session_state.username.lower() == "kapil")
 
-# --- MAIN APP LOGIC ---
+# --- MAIN APP ROUTING ---
 if not st.session_state.authenticated:
     col_logo, col_title = st.columns([2, 6])
     with col_logo:
         st.markdown(f"<img src='{PRISM_LOGO_URL}' style='max-width: 140px; margin-top: 10px;'>", unsafe_allow_html=True)
     with col_title:
-        st.markdown("<h3 style='margin: 0; color: #32363a;'>Petty Cash Management Portal</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin: 0; color: #1d2d3e;'>Petty Cash Management Portal</h3>", unsafe_allow_html=True)
     
     st.markdown("---")
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -229,6 +252,8 @@ if user_data and not user_data.get("email"):
                     st.success("✅ Profile successfully updated! Reloading...")
                     st.rerun()
     st.stop()
+
+assigned_prism = user_data.get("assigned_prism_id", "N/A") if user_data else "N/A"
 
 if page == "Dashboard & Claims":
     st.markdown("<div class='main-header'>📊 Dashboard & Claim Records</div>", unsafe_allow_html=True)
@@ -315,8 +340,8 @@ elif page == "New Expense Claim":
             merchant = st.text_input("Merchant / Vendor Name*")
             description = st.text_area("Description / Reason*")
             
-        st.markdown("---")
-        st.markdown("<p style='font-size: 15px; font-weight: bold; color: #bb0000;'>📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)</p>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin: 15px 0; border-color: #eee;'>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size: 14px; font-weight: 600; color: #1d2d3e;'>📎 Bill / Receipt Attachments (Mandatory - Multiple Allowed)</p>", unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
             "Upload receipts/bills (Images or PDFs)", 
             type=["png", "jpg", "jpeg", "pdf"], 
