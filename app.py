@@ -31,7 +31,7 @@ except Exception as e:
 
 st.set_page_config(page_title="PRISM Petty Cash Management", page_icon="🏢", layout="wide")
 
-# SAP Fiori Horizon Theme Styling
+# SAP Fiori Horizon Theme Styling & Profile Icon Hider
 st.markdown("""
     <style>
     .stApp {
@@ -42,6 +42,14 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+
+    /* Streamlit viewer badge / profile icon ko chupane ke liye */
+    [data-testid="stStatusWidget"] {
+        display: none !important;
+    }
+    div[class*="viewerBadge"] {
+        display: none !important;
+    }
 
     [data-testid="stFileUploader"] section small {
         display: none !important;
