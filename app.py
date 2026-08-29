@@ -31,7 +31,7 @@ except Exception as e:
 
 st.set_page_config(page_title="PRISM Petty Cash Management", page_icon="🏢", layout="wide")
 
-# SAP Fiori Horizon Theme Styling & Full UI Cleaner (Profile Icon, Toolbar, GitHub Badge Hider)
+# SAP Fiori Horizon Theme Styling & Full UI Cleaner (Including Bottom-Right Badge Hider)
 st.markdown("""
     <style>
     .stApp {
@@ -40,24 +40,27 @@ st.markdown("""
     }
     
     #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+    footer {visibility: hidden !important; display: none !important;}
     header {visibility: hidden;}
 
-    /* Streamlit toolbar, profile icon, viewer badge aur GitHub link ko puri tarah chupane ke liye */
-    div[data-testid="stToolbar"] {
-        display: none !important;
-    }
-    div[data-testid="stStatusWidget"] {
-        display: none !important;
-    }
-    div[class*="viewerBadge"] {
-        display: none !important;
-    }
-    button[kind="header"] {
-        display: none !important;
-    }
+    /* Streamlit Cloud Top Bar, Toolbar & Bottom-Right Hosted Badge Hider */
     header[data-testid="stHeader"] {
         display: none !important;
+        visibility: hidden !important;
+    }
+    .stApp > header {
+        display: none !important;
+    }
+    div[data-testid="stToolbar"],
+    div[data-testid="stDecoration"],
+    div[data-testid="stStatusWidget"],
+    div[class*="viewerBadge"],
+    button[kind="header"],
+    .viewerBadge_container__1QSob {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
     }
 
     [data-testid="stFileUploader"] section small {
